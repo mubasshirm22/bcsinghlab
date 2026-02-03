@@ -50,7 +50,8 @@ create_table_query = '''CREATE TABLE IF NOT EXISTS seqtable
         
       MAJORITYVOTE TEXT,
       PDB TEXT,
-      PDBID TEXT
+      PDBID TEXT,
+      STATUS TEXT
 ); '''
 
 cursor.execute(create_table_query)

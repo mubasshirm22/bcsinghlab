@@ -47,8 +47,8 @@ def get(seq):
 	email_id, message = batchtools.emailRequestWait(session, query, "Query:", randName, "Sable Not Ready", 30)
 	'''
 	
-	#Cancel in 15 min
-	email_id, message = batchtools.emailRequestWait(session, query, "Query:", randName, "Sable Not Ready", 30, 900)
+	#Cancel in 45 min (increased timeout)
+	email_id, message = batchtools.emailRequestWait(session, query, "Query:", randName, "Sable Not Ready", 30, 2700)
 	
 	if email_id:
 		#message = emailtools.decodeEmail(email_service, email_id)
@@ -85,8 +85,8 @@ def get(seq):
 		print(SS.conf)
 		print("Sable Complete")
 	else:
-		SS.pred += "failed to respond in time"
-		SS.conf += "failed to respond in time"
+		SS.pred += "failed to respond after 45 minutes"
+		SS.conf += "failed to respond after 45 minutes"
 		SS.status = 2 #error status
-		print("Sable failed: No response")
+		print("Sable failed: No response after 45 minutes")
 	return SS

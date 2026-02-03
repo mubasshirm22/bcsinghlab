@@ -13,6 +13,10 @@
 <body>
 
 <div><a id='home' href=''>Home</a></div>
+<div id='statusmessages' style="padding: 10px; margin-bottom: 20px; border: 1px solid #ccc; background-color: #f9f9f9;">
+	<b>Service Status:</b><br/>
+	<div id='statuscontent'></div>
+</div>
 <table id='fullresults'>
 	<tr><td>
 	<table id="mytable">
@@ -209,6 +213,34 @@
 
 	document.getElementById("home").setAttribute('href', document.location.origin);
 	var a = {{ data | safe}};
+
+	// Display status messages
+	var statusHtml = "";
+	if (a[0]['status'] != null && a[0]['status'] != "") {
+		statusHtml += "<b>Overall Status:</b> " + a[0]['status'] + "<br/><br/>";
+	}
+	
+	// Display individual service messages - check all keys case-insensitively
+	var serviceNames = ['PSI', 'JPred', 'Sable', 'SSPro'];
+	for (var i = 0; i < serviceNames.length; i++) {
+		var serviceName = serviceNames[i];
+		var msgKeyLower = serviceName.toLowerCase() + 'msg';
+		var msgFound = false;
+		// Check all keys in the data object
+		for (var key in a[0]) {
+			if (key.toLowerCase() === msgKeyLower && a[0][key] != null && a[0][key] != "") {
+				statusHtml += "<b>" + serviceName + ":</b> " + a[0][key] + "<br/>";
+				msgFound = true;
+				break;
+			}
+		}
+	}
+	
+	if (statusHtml != "") {
+		document.getElementById('statuscontent').innerHTML = statusHtml;
+	} else {
+		document.getElementById('statusmessages').style.display = 'none';
+	}
 
 	if (a[0]['pdb'] != null){
 		a[0]['pdb'] = JSON.parse(a[0]['pdb']);

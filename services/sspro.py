@@ -56,9 +56,9 @@ def get(seq):
 	email_id, message = batchtools.emailRequestWait(session, query, "Name:", randName, "SSPro Not Ready", 60)
 	'''
 	
-	#Cancels after 15 min. Length 400 sequences take 10-15 min in a batch
-	email_id, message = batchtools.emailRequestWait(session, query, "Name:", randName, "SSPro Not Ready", 60, 1500)
-
+	#Cancels after 45 min (increased timeout). Length 400 sequences take 10-15 min in a batch
+	email_id, message = batchtools.emailRequestWait(session, query, "Name:", randName, "SSPro Not Ready", 60, 2700)
+	
 	if email_id:
 		message_parts = message.splitlines()
 		
@@ -77,8 +77,8 @@ def get(seq):
 		SS.status = 3
 		print("SSpro Complete")
 	else:
-		SS.pred += "failed to respond in time"
-		SS.conf += "failed to respond in time"
+		SS.pred += "failed to respond after 45 minutes"
+		SS.conf += "failed to respond after 45 minutes"
 		SS.status = 2 #error status
-		print("SSPro failed: No response")
+		print("SSPro failed: No response after 45 minutes")
 	return SS

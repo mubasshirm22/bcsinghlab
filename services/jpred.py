@@ -50,14 +50,24 @@ def get(seq):
 			page = requests.get(joburl).text
 		'''
 
-		#Cancel after 15 min
+		#Cancel after 45 min (increased timeout)
 		stime  = time.time()
-		while page[0] == '<' or time.time() > stime + 900:
+		timeout = 2700  # 45 minutes
+		check_count = 0
+		while page[0] == '<' and time.time() < stime + timeout:
 			print("JpredSS Not Ready")
+			check_count += 1
+			if check_count % 3 == 0:  # Every 3 checks (1 minute), update status
+				elapsed = int((time.time() - stime) / 60)
+				print("JPred still trying... (" + str(elapsed) + " minutes elapsed)")
 			time.sleep(20)
-			page = requests.get(joburl).text
+			if time.time() < stime + timeout:  # Only fetch if still within timeout
+				try:
+					page = requests.get(joburl, timeout=10).text
+				except:
+					page = '<'  # Keep trying if request fails
 
-		if page[0] != '<':
+		if page[0] != '<' and time.time() < stime + timeout:
 			raw = page.splitlines()
 
 			SS.pred = raw[1].replace('jnetpred:','')
@@ -70,10 +80,11 @@ def get(seq):
 			SS.status = 1
 			print("JPred Complete")
 		else:
-			SS.pred += "failed to respond in time"
-			SS.conf += "failed to respond in time"
+			elapsed_min = int((time.time() - stime) / 60)
+			SS.pred += "failed to respond after " + str(elapsed_min) + " minutes"
+			SS.conf += "failed to respond after " + str(elapsed_min) + " minutes"
 			SS.status = 2 #error status
-			print("JPred failed: No response")
+			print("JPred failed: No response after " + str(elapsed_min) + " minutes")
 	except:
 		SS.pred += "sequence not accepted"
 		SS.conf += "sequence not accepted"

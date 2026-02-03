@@ -45,10 +45,10 @@ def get(seq):
 
 		horiz = 'http://bioinf.cs.ucl.ac.uk/psipred/api/submissions/' + filesUUID + '.horiz'
 		
-		#Length 1500 takes around 5 min
-		requesturl = batchtools.requestWait(horiz, 'PsiPred Not Ready')
+		#Length 1500 takes around 5 min, increased timeout to 45 min
+		requesturl = batchtools.requestWait(horiz, 'PsiPred Not Ready', 20, 2700)
 		
-		if requesturl:
+		if requesturl and requesturl.ok:
 			raw = requesturl.text.splitlines()
 			for i in range(len(raw)):
 				raw[i] = raw[i].strip()
@@ -60,10 +60,10 @@ def get(seq):
 			SS.status = 1
 			print("PsiPred Complete")
 		else:
-			SS.pred += "failed to respond in time"
-			SS.conf += "failed to respond in time"
+			SS.pred += "failed to respond after 45 minutes"
+			SS.conf += "failed to respond after 45 minutes"
 			SS.status = 2 #error status
-			print("PsiPred failed: No response")
+			print("PsiPred failed: No response after 45 minutes")
 
 	except:
 		SS.pred += "sequence not accepted"

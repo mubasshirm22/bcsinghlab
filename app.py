@@ -9,6 +9,7 @@ from forms import SubmissionForm
 from flask import Flask, render_template, request, current_app,send_file, redirect, url_for
 import threading
 import secrets
+import requests
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -58,6 +59,28 @@ def dbupdate(rowid, rowcol, rowval):
 		.format(sql.Identifier(rowcol.lower())),(rowval, rowid))
 	conn.commit()
 	cursor.close()
+
+def check_service_health():
+	"""Quick health check for all services"""
+	service_urls = {
+		"JPred": "http://www.compbio.dundee.ac.uk/jpred4/",
+		"PSI": "http://bioinf.cs.ucl.ac.uk/psipred/",
+		"Sable": "http://sable.cchmc.org/",
+		"SSPro": "http://scratch.proteomics.ics.uci.edu/"
+	}
+	
+	status = {}
+	for service_name, url in service_urls.items():
+		try:
+			response = requests.get(url, timeout=5)
+			if response.status_code == 200:
+				status[service_name] = "UP"
+			else:
+				status[service_name] = "DOWN"
+		except:
+			status[service_name] = "DOWN"
+	
+	return status
 
 #Dictionary containing sites and their classes
 siteDict = {
@@ -112,6 +135,9 @@ def hello(name=None):
 	for t in threading.enumerate():
 		if t.getName() in runningCounter.keys():
 			runningCounter[t.getName()] += 1
+	
+	# Check service health
+	serviceStatus = check_service_health()
 
 	if form.validate_on_submit():
 
@@ -156,7 +182,7 @@ def hello(name=None):
 		sendData(seq, startTime, ssObject, post_data, pdbdata)
 		return redirect(url_for('showdboutput', var = startTime))
 		
-	return render_template('index.html', form = form, counter = runningCounter) #default submission page
+	return render_template('index.html', form = form, counter = runningCounter, serviceStatus = serviceStatus) #default submission page
 
 @app.route('/error/')
 def errorpage():
@@ -220,37 +246,109 @@ def showdboutput(var):
 
 def run(predService, seq, name, ssObject,
  startTime, post_data, pdbdata):
+	try:
+		tcount = 0
+		for t in threading.enumerate():
+			if t.getName() == name:
+				tcount += 1
 
-	tcount = 0
-	for t in threading.enumerate():
-		if t.getName() == name:
-			tcount += 1
+		if tcount > siteLimit[name]:
+			tempSS = ss.SS(name)
+			tempSS.pred = "Queue Full"
+			tempSS.conf = "Queue Full"
+			tempSS.status = -1
+			dbupdate(startTime, name + "msg", name + " didn't run because queue is full")
+		else:
+			import time as time_module
+			start_time = time_module.time()
+			dbupdate(startTime, name + "msg", name + " is running...")
+			try:
+				#tempSS = predService.get(seq, tcount)
+				tempSS = predService.get(seq)
+				elapsed_min = int((time_module.time() - start_time) / 60)
+				if tempSS.status == 1 or tempSS.status == 3:
+					dbupdate(startTime, name + "msg", name + " completed successfully after " + str(elapsed_min) + " minutes")
+				elif tempSS.status == 2:
+					if "failed to respond after" in tempSS.pred:
+						dbupdate(startTime, name + "msg", name + " stopped working after trying for " + str(elapsed_min) + " minutes")
+					else:
+						dbupdate(startTime, name + "msg", name + " isn't working, it's not running anymore")
+				elif tempSS.status == 4:
+					dbupdate(startTime, name + "msg", name + " didn't run because sequence not accepted")
+				else:
+					dbupdate(startTime, name + "msg", name + " is still running... (" + str(elapsed_min) + " minutes)")
+			except Exception as e:
+				tempSS = ss.SS(name)
+				tempSS.pred = "Service Error: " + str(e)
+				tempSS.conf = "Service Error: " + str(e)
+				tempSS.status = 2
+				dbupdate(startTime, name + "msg", name + " didn't run because " + str(e))
+				print(name + " failed with exception: " + str(e))
+		
+		dbupdate(startTime, tempSS.name + "pred", tempSS.pred)
+		dbupdate(startTime, tempSS.name + "conf", tempSS.conf)
+		dbupdate(startTime, tempSS.name + "stat", tempSS.status)
 
-	if tcount > siteLimit[name]:
-		tempSS = ss.SS(name)
-		tempSS.pred = "Queue Full"
-		tempSS.conf = "Queue Full"
-		tempSS.status = -1
-	else:
-		#tempSS = predService.get(seq, tcount)
-		tempSS = predService.get(seq)
-	
-	dbupdate(startTime, tempSS.name + "pred", tempSS.pred)
-	dbupdate(startTime, tempSS.name + "conf", tempSS.conf)
-	dbupdate(startTime, tempSS.name + "stat", tempSS.status)
+		ssObject.append(tempSS)
+		majority = batchtools.majorityVote(seq, ssObject)
+		dbupdate(startTime, 'majorityvote', majority)
 
-	ssObject.append(tempSS)
-	majority = batchtools.majorityVote(seq, ssObject)
-	dbupdate(startTime, 'majorityvote', majority)
-
-	post_data['completed'] += 1
-	if post_data['completed'] == post_data['total_sites']:
-		print("All predictions completed.")
-		if post_data['email'] != "": #if all completed and user email is not empty, send email
-			print ("Sending results to " + post_data['email'])
-			#create HTML and store it in post_data
-			post_data.update({'output' : htmlmaker.createHTML(ssObject, seq, pdbdata, majority)})
-			emailtools.sendEmail(email_service, post_data['email'],"Prediction Results", post_data['output'])
+		post_data['completed'] += 1
+		if post_data['completed'] == post_data['total_sites']:
+			print("All predictions completed.")
+			statusMsg = "All services complete."
+			failedServices = []
+			for ssobj in ssObject:
+				if ssobj.status != 1 and ssobj.status != 3:
+					if ssobj.status == -1:
+						failedServices.append(ssobj.name + " didn't run because queue is full")
+					elif ssobj.status == 2:
+						if "Service Error" in ssobj.pred:
+							failedServices.append(ssobj.name + " didn't run because " + ssobj.pred.replace("Service Error: ", ""))
+						else:
+							failedServices.append(ssobj.name + " didn't run because " + ssobj.pred)
+					elif ssobj.status == 4:
+						failedServices.append(ssobj.name + " didn't run because sequence not accepted")
+					else:
+						failedServices.append(ssobj.name + " didn't complete")
+			if failedServices:
+				statusMsg += " " + ". ".join(failedServices) + "."
+			dbupdate(startTime, 'status', statusMsg)
+			if post_data['email'] != "": #if all completed and user email is not empty, send email
+				print ("Sending results to " + post_data['email'])
+				#create HTML and store it in post_data
+				post_data.update({'output' : htmlmaker.createHTML(ssObject, seq, pdbdata, majority)})
+				emailtools.sendEmail(email_service, post_data['email'],"Prediction Results", post_data['output'])
+	except Exception as e:
+		# Catch any unexpected errors to ensure thread completes
+		print(name + " thread failed with unexpected error: " + str(e))
+		import traceback
+		traceback.print_exc()
+		try:
+			tempSS = ss.SS(name)
+			tempSS.pred = "Thread Error: " + str(e)
+			tempSS.conf = "Thread Error: " + str(e)
+			tempSS.status = 2
+			dbupdate(startTime, name + "msg", name + " didn't run because thread error: " + str(e))
+			dbupdate(startTime, tempSS.name + "pred", tempSS.pred)
+			dbupdate(startTime, tempSS.name + "conf", tempSS.conf)
+			dbupdate(startTime, tempSS.name + "stat", tempSS.status)
+			# Check if this service is already in ssObject by name
+			found = False
+			for ssobj in ssObject:
+				if ssobj.name == name:
+					found = True
+					break
+			if not found:
+				ssObject.append(tempSS)
+			post_data['completed'] += 1
+			if post_data['completed'] == post_data['total_sites']:
+				statusMsg = "All services complete. " + name + " didn't run because thread error: " + str(e) + "."
+				dbupdate(startTime, 'status', statusMsg)
+		except Exception as e2:
+			print("Failed to update database after thread error for " + name + ": " + str(e2))
+			import traceback
+			traceback.print_exc()
 
 
 #Sends sequence based off whatever was selected before submission
