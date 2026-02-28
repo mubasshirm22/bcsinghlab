@@ -6,238 +6,677 @@
 	<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js">
 	</script>
 	<script src="{{url_for('static', filename='scripts/html2canvas.js')}}"></script>
-	<link rel="stylesheet" type="text/css" href="{{url_for('static', filename='css/style.css')}}">
+	<link rel="stylesheet" type="text/css" href="{{url_for('static', filename='css/style.css')}}?v=2.0">
+	<link rel="stylesheet" type="text/css" href="{{url_for('static', filename='css/tooltip.css')}}">
 	<title>Prediction Results</title>
 	<meta name='viewport' content='width=device-width, initial-scale=1.0'><meta name="autorefresh" http-equiv='refresh' content='30'>
 </head>
 <body>
-
-<div><a id='home' href=''>Home</a></div>
-<div id='statusmessages' style="padding: 10px; margin-bottom: 20px; border: 1px solid #ccc; background-color: #f9f9f9;">
-	<b>Service Status:</b><br/>
-	<div id='statuscontent'></div>
-</div>
-<table id='fullresults'>
-	<tr><td>
-	<table id="mytable">
-	</table>
-	<br/><br/>
-	</td></tr>
-	<tr><td>
-	<div id='legend'>
-		<b>Legend</b>
-		<p>S: bend</p>
-		<p>T: turn</p>
-		<p>E: beta strand</p>
-		<p>G: 3/10-helix</p>
-		<p>H: alpha helix</p>
-	</div>
-	</td></tr>
-</table>
-<br/><br/><br/>
-<table style="text-align: center; padding-bottom: 10px; border-spacing: 15px 0rem;">
-<tr>
-	<td>
-		<div>
-			Enable AutoRefresh
-			<span class="tooltip">
-				?
-				<ul class="tooltiptext">
-					When enabled, the page will automatically refresh every 30 seconds. <br>
-					Disable this option so that color coding and images do not disappear on their own.
-					<li>Refreshing will reset color coding.</li>
-					<li>Refreshing will cause generated images to disappear.</li>
-				</ul>
-			</span>
+	<header class="header">
+		<div class="header-content">
+			<a href="/" class="logo">SSPred</a>
+			<nav class="nav-links">
+				<a href="/">Submit</a>
+				<a href="/archive">Archive</a>
+			</nav>
 		</div>
-	</td>
-	<td>
-		<div>
-			Show Majority Vote
-			<span class="tooltip">
-				?
-				<div class="tooltiptext">
-					When enabled, the majority vote line will be displayed along with the results. <br>
-					Disable this option if you do not want to include it with the generated image.
+	</header>
+
+	<div class="main-container no-sidebar">
+		<main class="main-content">
+			<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+				<a id='home' href='' class="btn btn-secondary">← Back to Home</a>
+				<button id="toggle-view" class="btn btn-secondary" onclick="toggleViewMode()">View Original Format</button>
+			</div>
+			<h1 class="page-title">Prediction Results</h1>
+			<p class="page-subtitle">Real-time progress tracking for your protein structure predictions</p>
+			
+			<div id="progress-container" class="progress-container"></div>
+			
+			<div id='statusmessages' style="display: none;">
+				<b>Service Status:</b><br/>
+				<div id='statuscontent'></div>
+			</div>
+			
+			<div id="modern-view">
+			<div class="results-section">
+				<table id='fullresults'>
+					<tr><td>
+						<table id="mytable">
+						</table>
+						<br/><br/>
+					</td></tr>
+					<tr><td>
+						<div id='legend'>
+							<b>Legend</b>
+							<p>S: bend</p>
+							<p>T: turn</p>
+							<p>E: beta strand</p>
+							<p>G: 3/10-helix</p>
+							<p>H: alpha helix</p>
+						</div>
+					</td></tr>
+				</table>
+			</div>
+
+			<div class="controls-section">
+				<div class="form-section">
+					<div class="form-section-title">Display Options</div>
+					
+					<div style="display: flex; gap: 24px; align-items: center; flex-wrap: wrap; margin-bottom: 16px;">
+						<div style="display: flex; align-items: center; gap: 8px;">
+								<span>Enable AutoRefresh</span>
+								<span class="tooltip">
+								?
+									<ul class="tooltiptext">
+										When enabled, the page will automatically refresh every 30 seconds. <br>
+										Disable this option so that color coding and images do not disappear on their own.
+										<li>Refreshing will reset color coding.</li>
+										<li>Refreshing will cause generated images to disappear.</li>
+									</ul>
+								</span>
+							<label class="switch" style="margin: 0;"> 
+								<input type="checkbox" id="togglerefresh" onclick="toggleRefresh()" checked>
+								<span class="slider"></span>
+							</label>
+						</div>
+						
+						<div style="display: flex; align-items: center; gap: 8px;">
+								<span>Show Majority Vote</span>
+								<span class="tooltip">
+								?
+									<div class="tooltiptext">
+										When enabled, the majority vote line will be displayed along with the results. <br>
+										Disable this option if you do not want to include it with the generated image.
+									</div>
+								</span>
+							<label class="switch" style="margin: 0;"> 
+								<input type="checkbox" id="togglemajority" onclick="toggleRows('togglemajority', 'majrow')" checked>
+								<span class="slider"></span>
+							</label>
+						</div>
+
+						<div class="enableWithPDB" style="display: flex; align-items: center; gap: 8px;">
+								<span>Show Known Structure</span>
+								<span class="tooltip">
+								?
+									<div class="tooltiptext">
+										When enabled, the known secondary structure will be displayed along with the results. <br>
+										Disable this option if you do not want to include it with the generated image.
+									</div>
+								</span>
+							<label class="switch" style="margin: 0;"> 
+								<input type="checkbox" id="togglepdb" onclick="toggleRows('togglepdb','pdbrow')" checked>
+								<span class="slider"></span>
+							</label>
+						</div>
+
+						<div class="enableWithPDB" style="display: flex; align-items: center; gap: 8px;">
+								<span>Colorize Primary Sequence</span>
+								<span class="tooltip">
+								?
+									<div class="tooltiptext">
+										When enabled, helices and strands will be colored in the primary sequence. <br>
+										Disable this option if you do not want to include it with the generated image.
+									</div>
+								</span>
+							<label class="switch" style="margin: 0;"> 
+								<input type="checkbox" id="toggleseqcolor" onclick="colorizeSequence()" unchecked>
+								<span class="slider"></span>
+							</label>
+						</div>
+					</div>
+
+					<div class="form-group" style="margin-top: 20px;">
+						<label style="display: flex; align-items: center; gap: 10px;">
+							Elements Per Row:
+							<span class="tooltip">
+								<ul class="tooltiptext">
+									The number of elements each row will have in the results.
+									<li>This option affects image generation.</li>
+									<li>If an image has previously been generated, re-generate it to show any changes.</li>
+								</ul>
+							</span>
+						</label>
+						<div style="display: flex; gap: 12px; align-items: center; margin-top: 8px;">
+							<select id="rowfield" style="max-width: 120px;">
+								<option value="60">60</option>
+								<option value="70">70</option>
+								<option value="80">80</option>
+								<option value="90">90</option>
+								<option value="100">100</option>
+							</select>
+							<button id="updaterows" class="btn btn-secondary">Update Rows</button>
+						</div>
+					</div>
+
+					<div class="form-group" style="margin-top: 20px;">
+						<label>Color Configuration</label>
+						<div style="display: flex; gap: 24px; align-items: center; margin-top: 12px; flex-wrap: wrap;">
+							<div style="display: flex; align-items: center; gap: 8px;">
+								<label style="margin: 0; min-width: 60px;">Helix:</label>
+								<input id="hcolor" type="color" value="#0000FF">
+							</div>
+							<div style="display: flex; align-items: center; gap: 8px;">
+								<label style="margin: 0; min-width: 60px;">Coil:</label>
+								<input id="ccolor" type="color" value="#FF0000">
+							</div>
+							<div style="display: flex; align-items: center; gap: 8px;">
+								<label style="margin: 0; min-width: 60px;">Beta:</label>
+								<input id="ecolor" type="color" value="#008000">
+							</div>
+							<button id="updatecolor" class="btn btn-secondary">
+								Update Colors
+								<span class="tooltip">
+									<ul class="tooltiptext">
+										The colors that will be used to highlight predicted elements.
+										<li>Refreshing will cause the colors to reset.</li>
+										<li>This option affects image generation.</li>
+										<li>If an image has previously been generated, re-generate it to show any changes.</li>
+									</ul>
+								</span>
+							</button>
+						</div>
+					</div>
 				</div>
-			</span>
-		</div>
-	</td>
-	<td class='enableWithPDB'>
-		<div class='enableWithPDB'>
-			Show Known Structure
-			<span class="tooltip">
-				?
-				<div class="tooltiptext">
-					When enabled, the known secondary structure will be displayed along with the results. <br>
-					Disable this option if you do not want to include it with the generated image.
+
+				<div class="form-section">
+					<div class="form-section-title">Image Generation</div>
+					<div class="button-group">
+						<button id='genimage' class="btn btn-primary">Generate Image</button> 
+						<span class='tooltip'>
+							<ul class='tooltiptext'>
+								Generate an image version of the above table of results without the legend.
+								<li>Save the generated image by right-clicking and selecting 'Save image as...'
+									<br>
+									or with the Save Image button that shows after generating an image.
+								</li>
+								<li>Re-generate the image to reflect any customization changes.</li>
+							</ul>
+						</span>
+						<button id='genimagewlegend' class="btn btn-primary">Generate Image with Legend</button> 
+						<span class='tooltip'>
+							<ul class='tooltiptext'>
+								Generate an image version of the above results including the legend.
+								<li>Save the generated image by right-clicking and selecting 'Save image as...'.
+									<br>
+									or with the Save Image button that shows after generating an image.
+								</li>
+								<li>Re-generate the image to reflect any customization changes.</li>
+							</ul>
+						</span>
+					</div>
+					<div id='saveimagediv' style="display: none; margin-top: 16px;">
+						<button id='saveimage' class="btn btn-secondary">Save Image</button>
+						<span class='tooltip'>
+							<ul class='tooltiptext'>
+								Saves the generated image onto your device.
+							</ul>
+						</span>
+					</div>
 				</div>
-			</span>
-		</div>
-	</td>
-	<td class='enableWithPDB'>
-		<div class='enableWithPDB'>
-			Colorize Primary Sequence
-			<span class="tooltip">
-				?
-				<div class="tooltiptext">
-					When enabled, helices and strands will be colored in the primary sequence. <br>
-					Disable this option if you do not want to include it with the generated image.
+			</div>
+
+			<div id='imgoutput' style="margin: 32px 0; text-align: center;">
+				<table id='imgoutput-table' border="0" style="margin: 0 auto;">
+					<tr>
+						<td id="myimage"></td>
+					</tr>
+				</table>
+			</div>
+			</div>
+
+			<div id="original-view" style="display: none; font-family: monospace; background: white; padding: 20px;">
+				<div><a id='home-original' href=''>Home</a></div>
+				<div id='statusmessages-original' style="padding: 10px; margin-bottom: 20px; border: 1px solid #ccc; background-color: #f9f9f9;">
+					<b>Service Status:</b><br/>
+					<div id='statuscontent-original'></div>
 				</div>
-			</span>
-		</div>
-	</td>
-</tr>
-<tr>
-	<td>
-	<label class="switch"> 
-	  <input type="checkbox" id="togglerefresh" onclick="toggleRefresh()" checked>
-	  <span class="slider round"></span>
-	</label>
-	</td>
-	
-	<td>
-	<label class="switch"> 
-	  <input type="checkbox" id="togglemajority" onclick="toggleRows('togglemajority', 'majrow')" checked>
-	  <span class="slider round"></span>
-	</label>
-	</td>
-
-	<td class='enableWithPDB'>
-	<label class="switch"> 
-	  <input type="checkbox" id="togglepdb" onclick="toggleRows('togglepdb','pdbrow')" checked>
-	  <span class="slider round"></span>
-	</label>
-	</td>
-
-	<td class='enableWithPDB'>
-	<label class="switch"> 
-	  <input type="checkbox" id="toggleseqcolor" onclick="colorizeSequence()" unchecked>
-	  <span class="slider round"></span>
-	</label>
-	</td>
-	</div>
-	
-</tr>
-</table>
-<div>
-	Elements Per Row: 
-	<span class="tooltip">
-		?
-		<ul class="tooltiptext">
-			The number of elements each row will have in the results.
-			<li>This option affects image generation.</li>
-			<li>If an image has previously been generated, re-generate it to show any changes.</li>
-		</ul>
-	</span>
-	<select id="rowfield">
-	  <option value="60">60</option>
-	  <option value="70">70</option>
-	  <option value="80">80</option>
-	  <option value="90">90</option>
-	  <option value="100">100</option>
-	</select>
-	<button id="updaterows">Update Rows</button>
-</div>
-<div id = "ieNotice" style="display:none;font-weight:bold">
-	<br>
-	The features below are either incompatible or more difficult to use with Internet Explorer.<br>
-	Switch to a compatible browser such as Google Chrome or Mozilla Firefox in order to properly use them.
-	<br>
-</div>
-<table style="text-align: center; padding-bottom: 10px">
-	<tr>
-		<td>Helix</td>
-		<td>Coil</td>
-		<td>Beta</td>
-	</tr>
-	<tr>
-		<td><input id="hcolor" type="color" value="#0000FF"></td>
-		<td><input id="ccolor" type="color" value="#FF0000"></td>
-		<td><input id="ecolor" type="color" value="#008000"></td>
-		<td>
-			<button id="updatecolor">Update Colors</button>
-			<span class="tooltip">
-				?
-				<ul class="tooltiptext">
-					The colors that will be used to highlight predicted elements.
-					<li>Refreshing will cause the colors to reset.</li>
-					<li>This option affects image generation.</li>
-					<li>If an image has previously been generated, re-generate it to show any changes.</li>
-				</ul>
-			</span>
-		</td>
-	</tr>
-</table>
-
-<button id='genimage'>Generate Image</button> 
-<span class='tooltip'>
-	?
-	<ul class='tooltiptext'>
-		Generate an image version of the above table of results without the legend.
-		<li>Save the generated image by right-clicking and selecting 'Save image as...'
-			<br>
-			or with the Save Image button that shows after generating an image.
-		</li>
-		<li>Re-generate the image to reflect any customization changes.</li>
-	</ul>
-</span>
-<button id='genimagewlegend'>Generate Image with Legend</button> 
-<span class='tooltip'>
-	?
-	<ul class='tooltiptext'>
-		Generate an image version of the above results including the legend.
-		<li>Save the generated image by right-clicking and selecting 'Save image as...'.
-			<br>
-			or with the Save Image button that shows after generating an image.
-		</li>
-		<li>Re-generate the image to reflect any customization changes.</li>
-	</ul>
-</span>
-<div id='saveimagediv' style="display: none;">
-	<button id='saveimage'>Save Image</button>
-	<span class='tooltip'>
-	?
-	<ul class='tooltiptext'>
-		Saves the generated image onto your device.
-	</ul>
-	</span>
-</div>
-<table id='imgoutput' border="0">
-	<tr>
-		<td id="myimage"></td>
-	</tr>
-</table>
+				<table id='fullresults-original'>
+					<tr><td>
+						<table id="mytable-original" style="font-family: monospace;">
+						</table>
+						<br/><br/>
+					</td></tr>
+					<tr><td>
+						<div id='legend-original'>
+							<b>Legend</b>
+							<p>S: bend</p>
+							<p>T: turn</p>
+							<p>E: beta strand</p>
+							<p>G: 3/10-helix</p>
+							<p>H: alpha helix</p>
+						</div>
+					</td></tr>
+				</table>
+				<br/><br/><br/>
+				<table style="text-align: center; padding-bottom: 10px; border-spacing: 15px 0rem;">
+					<tr>
+						<td>
+							<div>
+								Enable AutoRefresh
+								<span class="tooltip">
+									?
+									<ul class="tooltiptext">
+										When enabled, the page will automatically refresh every 30 seconds. <br>
+										Disable this option so that color coding and images do not disappear on their own.
+										<li>Refreshing will reset color coding.</li>
+										<li>Refreshing will cause generated images to disappear.</li>
+									</ul>
+								</span>
+							</div>
+						</td>
+						<td>
+							<div>
+								Show Majority Vote
+								<span class="tooltip">
+									?
+									<div class="tooltiptext">
+										When enabled, the majority vote line will be displayed along with the results. <br>
+										Disable this option if you do not want to include it with the generated image.
+									</div>
+								</span>
+							</div>
+						</td>
+						<td class='enableWithPDB'>
+							<div class='enableWithPDB'>
+								Show Known Structure
+								<span class="tooltip">
+									?
+									<div class="tooltiptext">
+										When enabled, the known secondary structure will be displayed along with the results. <br>
+										Disable this option if you do not want to include it with the generated image.
+									</div>
+								</span>
+							</div>
+						</td>
+						<td class='enableWithPDB'>
+							<div class='enableWithPDB'>
+								Colorize Primary Sequence
+								<span class="tooltip">
+									?
+									<div class="tooltiptext">
+										When enabled, helices and strands will be colored in the primary sequence. <br>
+										Disable this option if you do not want to include it with the generated image.
+									</div>
+								</span>
+							</div>
+						</td>
+					</tr>
+					<tr>
+						<td>
+							<label class="switch"> 
+								<input type="checkbox" id="togglerefresh-original" onclick="toggleRefresh()" checked>
+								<span class="slider"></span>
+							</label>
+						</td>
+						<td>
+							<label class="switch"> 
+								<input type="checkbox" id="togglemajority-original" onclick="toggleRows('togglemajority-original', 'majrow')" checked>
+								<span class="slider"></span>
+							</label>
+						</td>
+						<td class='enableWithPDB'>
+							<label class="switch"> 
+								<input type="checkbox" id="togglepdb-original" onclick="toggleRows('togglepdb-original','pdbrow')" checked>
+								<span class="slider"></span>
+							</label>
+						</td>
+						<td class='enableWithPDB'>
+							<label class="switch"> 
+								<input type="checkbox" id="toggleseqcolor-original" onclick="colorizeSequence()" unchecked>
+								<span class="slider"></span>
+							</label>
+						</td>
+					</tr>
+				</table>
+				<div>
+					Elements Per Row: 
+					<span class="tooltip">
+						?
+						<ul class="tooltiptext">
+							The number of elements each row will have in the results.
+							<li>This option affects image generation.</li>
+							<li>If an image has previously been generated, re-generate it to show any changes.</li>
+						</ul>
+					</span>
+					<select id="rowfield-original">
+						<option value="60">60</option>
+						<option value="70">70</option>
+						<option value="80">80</option>
+						<option value="90">90</option>
+						<option value="100">100</option>
+					</select>
+					<button id="updaterows-original">Update Rows</button>
+				</div>
+				<div id = "ieNotice" style="display:none;font-weight:bold">
+					<br>
+					The features below are either incompatible or more difficult to use with Internet Explorer.<br>
+					Switch to a compatible browser such as Google Chrome or Mozilla Firefox in order to properly use them.
+					<br>
+				</div>
+				<table style="text-align: center; padding-bottom: 10px">
+					<tr>
+						<td>Helix</td>
+						<td>Coil</td>
+						<td>Beta</td>
+					</tr>
+					<tr>
+						<td><input id="hcolor-original" type="color" value="#0000FF"></td>
+						<td><input id="ccolor-original" type="color" value="#FF0000"></td>
+						<td><input id="ecolor-original" type="color" value="#008000"></td>
+						<td>
+							<button id="updatecolor-original">Update Colors</button>
+							<span class="tooltip">
+								?
+								<ul class="tooltiptext">
+									The colors that will be used to highlight predicted elements.
+									<li>Refreshing will cause the colors to reset.</li>
+									<li>This option affects image generation.</li>
+									<li>If an image has previously been generated, re-generate it to show any changes.</li>
+								</ul>
+							</span>
+						</td>
+					</tr>
+				</table>
+				<button id='genimage-original'>Generate Image</button> 
+				<span class='tooltip'>
+					?
+					<ul class='tooltiptext'>
+						Generate an image version of the above table of results without the legend.
+						<li>Save the generated image by right-clicking and selecting 'Save image as...'
+							<br>
+							or with the Save Image button that shows after generating an image.
+						</li>
+						<li>Re-generate the image to reflect any customization changes.</li>
+					</ul>
+				</span>
+				<button id='genimagewlegend-original'>Generate Image with Legend</button> 
+				<span class='tooltip'>
+					?
+					<ul class='tooltiptext'>
+						Generate an image version of the above results including the legend.
+						<li>Save the generated image by right-clicking and selecting 'Save image as...'.
+							<br>
+							or with the Save Image button that shows after generating an image.
+						</li>
+						<li>Re-generate the image to reflect any customization changes.</li>
+					</ul>
+				</span>
+				<div id='saveimagediv-original' style="display: none;">
+					<button id='saveimage-original'>Save Image</button>
+					<span class='tooltip'>
+						?
+						<ul class='tooltiptext'>
+							Saves the generated image onto your device.
+						</ul>
+					</span>
+				</div>
+				<table id='imgoutput-original' border="0">
+					<tr>
+						<td id="myimage-original"></td>
+					</tr>
+				</table>
+			</div>
 
 <script type="text/javascript">
 
 	document.getElementById("home").setAttribute('href', document.location.origin);
 	var a = {{ data | safe}};
-
-	// Display status messages
+	var jobId = window.location.pathname.split('/').pop();
+	var serviceNames = ['PSI', 'JPred', 'Sable', 'SSPro', 'Yaspin', 'PHDpsi', 'PROFsec', 'Predator'];
+	
+	// Progress tracking
+	var progressData = {};
+	
+	// Initialize progress bars
+	function initProgressBars() {
+		var container = document.getElementById('progress-container');
+		container.innerHTML = '';
+		
+		for (var i = 0; i < serviceNames.length; i++) {
+			var serviceName = serviceNames[i];
+			var statKey = serviceName.toLowerCase() + 'stat';
+			var msgKey = serviceName.toLowerCase() + 'msg';
+			
+			// Check if this service was selected
+			var wasSelected = false;
+			for (var key in a[0]) {
+				if (key.toLowerCase() === statKey) {
+					wasSelected = true;
+					break;
+				}
+			}
+			
+			if (!wasSelected) continue;
+			
+			var status = a[0][statKey] || 0;
+			var message = '';
+			for (var key in a[0]) {
+				if (key.toLowerCase() === msgKey && a[0][key] != null && a[0][key] != "") {
+					message = a[0][key];
+					break;
+				}
+			}
+			
+			progressData[serviceName] = {
+				status: status,
+				message: message,
+				progress: 0
+			};
+			
+			updateProgressBar(serviceName, status, message);
+		}
+	}
+	
+	// Update individual progress bar with smooth animations
+	function updateProgressBar(serviceName, status, message) {
+		var container = document.getElementById('progress-container');
+		var existing = document.getElementById('progress-' + serviceName);
+		
+		var progress = 0;
+		var statusClass = 'waiting';
+		var statusIcon = 'waiting';
+		var statusText = 'Waiting...';
+		var barClass = 'waiting';
+		
+		// Parse status and message to determine progress
+		if (status == 1 || status == 3) {
+			progress = 100;
+			statusClass = 'complete';
+			statusIcon = 'complete';
+			statusText = 'Complete ✓';
+			barClass = 'complete';
+		} else if (status == 2 || status == 4) {
+			progress = 100;
+			statusClass = 'error';
+			statusIcon = 'error';
+			statusText = 'Error ✕';
+			barClass = 'error';
+		} else if (message) {
+			// Parse message for progress indicators
+			if (message.includes('submitting')) {
+				progress = 15;
+				statusText = 'Submitting...';
+				barClass = 'running';
+			} else if (message.includes('still waiting') || message.includes('Not Ready')) {
+				// Extract minutes from message if available
+				var match = message.match(/(\d+)\s*minutes?/);
+				if (match) {
+					var minutes = parseInt(match[1]);
+					// Estimate progress based on time (max 45 min = 2700s)
+					progress = Math.min(95, 20 + (minutes / 45) * 75);
+				} else {
+					progress = 40;
+				}
+				statusText = 'Processing...';
+				barClass = 'running';
+			} else if (message.includes('finished successfully')) {
+				progress = 100;
+				statusClass = 'complete';
+				statusIcon = 'complete';
+				statusText = 'Complete ✓';
+				barClass = 'complete';
+			} else if (message.includes('failed') || message.includes('error') || message.includes('didn\'t run') || message.includes('server error')) {
+				progress = 100;
+				statusClass = 'error';
+				statusIcon = 'error';
+				statusText = 'Error ✕';
+				barClass = 'error';
+			} else if (message.includes('running')) {
+				progress = 50;
+				statusText = 'Running...';
+				barClass = 'running';
+			} else {
+				progress = 25;
+				statusText = 'Initializing...';
+				barClass = 'waiting';
+			}
+		} else {
+			progress = 10;
+			statusText = 'Initializing...';
+			barClass = 'waiting';
+		}
+		
+		// Smooth progress animation
+		var currentProgress = progressData[serviceName] ? progressData[serviceName].progress : 0;
+		if (existing) {
+			var currentBar = existing.querySelector('.progress-bar');
+			if (currentBar) {
+				currentProgress = parseFloat(currentBar.style.width) || 0;
+			}
+		}
+		
+		var html = '<div class="progress-item" id="progress-' + serviceName + '">' +
+			'<div class="progress-header">' +
+			'<div class="progress-title">' +
+			'<span class="status-icon ' + statusIcon + '"></span>' +
+			'<strong>' + serviceName + '</strong>' +
+			'</div>' +
+			'<div class="progress-status">' + statusText + ' <span style="font-weight: 700; color: var(--primary);">' + Math.round(progress) + '%</span></div>' +
+			'</div>' +
+			'<div class="progress-bar-wrapper">' +
+			'<div class="progress-bar ' + barClass + ' running" style="width: ' + currentProgress + '%" data-target="' + progress + '"></div>' +
+			'</div>' +
+			'<div class="status-message">' + (message || 'Initializing...') + '</div>' +
+			'</div>';
+		
+		if (existing) {
+			existing.outerHTML = html;
+		} else {
+			container.innerHTML += html;
+		}
+		
+		// Animate progress bar to target
+		setTimeout(function() {
+			var bar = document.querySelector('#progress-' + serviceName + ' .progress-bar');
+			if (bar) {
+				var target = parseFloat(bar.getAttribute('data-target'));
+				bar.style.width = target + '%';
+			}
+		}, 100);
+		
+		progressData[serviceName] = {
+			status: status,
+			message: message,
+			progress: progress
+		};
+	}
+	
+	// Poll for updates
+	function pollForUpdates() {
+		if (!document.getElementById('togglerefresh') || document.getElementById('togglerefresh').checked) {
+			var url = window.location.origin + '/dboutput/' + jobId + '?json=1';
+			fetch(url)
+				.then(response => response.text())
+				.then(text => {
+					try {
+						var data = JSON.parse(text);
+						if (data && data.length > 0) {
+							var newData = data[0];
+							
+							// Update progress bars
+							for (var i = 0; i < serviceNames.length; i++) {
+								var serviceName = serviceNames[i];
+								var statKey = serviceName.toLowerCase() + 'stat';
+								var msgKey = serviceName.toLowerCase() + 'msg';
+								
+								var status = newData[statKey] || 0;
+								var message = '';
+								for (var key in newData) {
+									if (key.toLowerCase() === msgKey && newData[key] != null && newData[key] != "") {
+										message = newData[key];
+										break;
+									}
+								}
+								
+								// Only update if status or message changed
+								if (progressData[serviceName]) {
+									if (progressData[serviceName].status != status || progressData[serviceName].message != message) {
+										updateProgressBar(serviceName, status, message);
+										// Update a[0] for results display
+										a[0][statKey] = status;
+										a[0][msgKey] = message;
+										
+										// Regenerate results table if a service completed
+										if (status == 1 || status == 3) {
+											var rowField = document.getElementById('rowfield');
+											if (rowField) {
+												generateRows(parseInt(rowField.value) || 60);
+											}
+										}
+									}
+								}
+							}
+							
+							// Check if all services are done
+							var allComplete = true;
+							var hasRunning = false;
+							for (var i = 0; i < serviceNames.length; i++) {
+								var serviceName = serviceNames[i];
+								var statKey = serviceName.toLowerCase() + 'stat';
+								if (newData[statKey] && newData[statKey] != 0) {
+									if (newData[statKey] != 1 && newData[statKey] != 3 && newData[statKey] != 2 && newData[statKey] != 4) {
+										allComplete = false;
+										hasRunning = true;
+									}
+								} else {
+									allComplete = false;
+									hasRunning = true;
+								}
+							}
+							
+							// If all done and refresh is disabled, reload once to show final results
+							if (!hasRunning && document.getElementById('togglerefresh') && !document.getElementById('togglerefresh').checked) {
+								setTimeout(() => {
+									if (!hasRunning) location.reload();
+								}, 2000);
+							}
+						}
+					} catch(e) {
+						console.log('Parse error:', e);
+					}
+				})
+				.catch(err => console.log('Poll error:', err));
+		}
+	}
+	
+	// Initialize on load
+	initProgressBars();
+	
+	// Poll every 3 seconds
+	setInterval(pollForUpdates, 3000);
+	
+	
+	// Display status messages (legacy)
 	var statusHtml = "";
 	if (a[0]['status'] != null && a[0]['status'] != "") {
 		statusHtml += "<b>Overall Status:</b> " + a[0]['status'] + "<br/><br/>";
 	}
 	
-	// Display individual service messages - check all keys case-insensitively
-	var serviceNames = ['PSI', 'JPred', 'Sable', 'SSPro'];
-	for (var i = 0; i < serviceNames.length; i++) {
-		var serviceName = serviceNames[i];
-		var msgKeyLower = serviceName.toLowerCase() + 'msg';
-		var msgFound = false;
-		// Check all keys in the data object
-		for (var key in a[0]) {
-			if (key.toLowerCase() === msgKeyLower && a[0][key] != null && a[0][key] != "") {
-				statusHtml += "<b>" + serviceName + ":</b> " + a[0][key] + "<br/>";
-				msgFound = true;
-				break;
-			}
-		}
-	}
-	
 	if (statusHtml != "") {
 		document.getElementById('statuscontent').innerHTML = statusHtml;
+		document.getElementById('statusmessages').style.display = 'block';
 	} else {
 		document.getElementById('statusmessages').style.display = 'none';
 	}
@@ -345,6 +784,149 @@
 
 	}
 	
+	// View toggle function
+	function toggleViewMode() {
+		var modernView = document.getElementById('modern-view');
+		var originalView = document.getElementById('original-view');
+		var toggleBtn = document.getElementById('toggle-view');
+		
+		if (modernView.style.display === 'none') {
+			modernView.style.display = 'block';
+			originalView.style.display = 'none';
+			toggleBtn.textContent = 'View Original Format';
+			// Regenerate rows for modern view
+			var rowField = document.getElementById('rowfield');
+			if (rowField) {
+				generateRows(parseInt(rowField.value) || 60);
+			}
+		} else {
+			modernView.style.display = 'none';
+			originalView.style.display = 'block';
+			toggleBtn.textContent = 'View Modern Format';
+			// Set home link for original view
+			document.getElementById("home-original").setAttribute('href', document.location.origin);
+			// Copy status messages to original view
+			var statusContent = document.getElementById('statuscontent');
+			if (statusContent && statusContent.innerHTML) {
+				document.getElementById('statuscontent-original').innerHTML = statusContent.innerHTML;
+				document.getElementById('statusmessages-original').style.display = 'block';
+			}
+			// Regenerate rows for original view
+			var rowField = document.getElementById('rowfield-original');
+			if (rowField) {
+				generateRowsOriginal(parseInt(rowField.value) || 60);
+			} else {
+				generateRowsOriginal(60);
+			}
+		}
+	}
+	
+	// Generate rows for original view - using exact same logic as generateRows
+	function generateRowsOriginal(length) {
+		var sites = []; //array containing which sites are completed
+		
+		//fill sites
+		for (var key of Object.keys(a[0]))
+		{
+			if (key.slice(key.length -4) == "stat") 
+			{
+				if (a[0][key] == 1 || a[0][key] == 3)
+				{
+					var name = key.slice(0,-4);
+					sites.push(name); //push sites with status 1 or 3 into array
+				}
+			}
+		}
+		
+		// Note: statusproduct calculation removed from original view to match original behavior
+		
+		var counter = drawCounter(a[0]['seq']);
+		
+		var rows = 0;
+		rows = Math.ceil(a[0]['seq'].length/length)
+
+		var output = "";
+		for(var i = 0; i < rows; i++)
+		{
+			//counter row
+			output += "<tr class='counterRow'><td align='right'></td>";
+			output += "<td class='charCounter'>" + counter.substring(length * i, length * (i + 1)).replace(/ /g, "&nbsp;") + "</td></tr>"; //replace afterwards so that &nbsp will not be substringed out
+			
+			//sequence row
+			output += "<tr class='seqRow'> <td align='right' class='seqLabel'>Sequence:</td>";
+			output += "<td class='seq'>" + a[0]['seq'].substring(length * i, length * (i + 1)) + "</td></tr>";
+
+			if (a[0]['pdb'] != null){
+				output += "<tr class='pdbrow'> <td align='right' class='pdbLabel'> PDB_"
+					+ a[0]['pdb']['pdbid'] 
+					+ '_'
+					+ a[0]['pdb']['chain'] +":</td>";
+				var pdbstring = a[0]['pdb']['secondary'].substring(length * i, length * (i + 1))
+				output += "<td class='pdb'>" + pdbstring + "</td></tr>";
+			}
+			//site rows
+			for(var j = 0; j < sites.length; j++)
+			{	
+				//pred
+				output += "<tr class='" + sites[j] + "prow'>";
+				output += "<td align='right'>" + sites[j].toUpperCase() + " Pred:</td>";
+				output += "<td class='" + sites[j] + "pred' class='pred'>";
+				var predstring = a[0][sites[j]+'pred'].substring(length * i, length * (i + 1));
+				output += predstring + "</td></tr>";
+				
+				//conf
+				if(a[0][sites[j] + 'stat'] == 1) //only show conf is status is 1
+				{
+					output += "<tr class='" + sites[j] + "crow'>";
+					output += "<td align='right'>" + sites[j].toUpperCase() + " Conf:</td>";
+					output += "<td class='" + sites[j] + "conf'>" + a[0][sites[j] + 'conf'].substring(length * i, length * (i + 1)) + "</td></tr>"
+				}
+			}
+			
+			if(a[0]['majorityvote'] != null)
+			{
+				//majority vote row
+				output += "<tr class='majrow'><td align='right'>Majority Vote:</td>";
+				output += "<td class='majorityvote'>"
+				var mvotestring = a[0]['majorityvote'].substring(length * i, length * (i + 1));
+				output += mvotestring + "</td></tr>";
+			}
+		}
+
+		
+		var table = document.getElementById('mytable-original');
+		if (table) {
+			table.innerHTML = output;
+
+			//Color code and add spacing
+			for (var x = 0; x < table.rows.length; x ++){
+				for (var y = 0; y < table.rows[x].cells.length; y ++){
+					var cell = table.rows[x].cells[y];
+					if (cell.className.includes('pred') || cell.className.includes('pdb') || cell.className.includes('majorityvote')){
+						var text = cell.textContent || cell.innerText;
+						var newHTML = "";
+						for (var z = 0; z < text.length; z ++){
+							var char = text[z];
+							if (char == 'H'){
+								newHTML += "<span class='h'>H</span>";
+							}
+							else if (char == 'E'){
+								newHTML += "<span class='e'>E</span>";
+							}
+							else if (char == 'C'){
+								newHTML += "<span class='c'>C</span>";
+							}
+							else{
+								newHTML += char;
+							}
+						}
+						cell.innerHTML = newHTML;
+					}
+				}
+			}
+		}
+	}
+	
 	generateRows(60);
 	//*
 	
@@ -361,27 +943,70 @@
 		generateRows(rownum.value);
 	});
 	
+	$('#updaterows-original').on('click', function() 
+	{
+		var rownum = document.getElementById('rowfield-original');
+		generateRowsOriginal(rownum.value);
+	});
+	
 	$('#updatecolor').on('click', function() {
+		var hcolor = document.getElementById('hcolor').value;
+		var ccolor = document.getElementById('ccolor').value;
+		var ecolor = document.getElementById('ecolor').value;
+		
+		// Sync to original view
+		document.getElementById('hcolor-original').value = hcolor;
+		document.getElementById('ccolor-original').value = ccolor;
+		document.getElementById('ecolor-original').value = ecolor;
+		
+		updateColors(hcolor, ccolor, ecolor);
+	});
+	
+	$('#updatecolor-original').on('click', function() {
+		var hcolor = document.getElementById('hcolor-original').value;
+		var ccolor = document.getElementById('ccolor-original').value;
+		var ecolor = document.getElementById('ecolor-original').value;
+		
+		// Sync to modern view
+		document.getElementById('hcolor').value = hcolor;
+		document.getElementById('ccolor').value = ccolor;
+		document.getElementById('ecolor').value = ecolor;
+		
+		updateColors(hcolor, ccolor, ecolor);
+	});
+	
+	function updateColors(hcolor, ccolor, ecolor) {
+		// Update colors for both views
 		var clist = document.getElementsByClassName('c');
 		for (var i = 0; i < clist.length; i++){
-			clist[i].style.color =  document.getElementById("ccolor").value;
+			clist[i].style.color = ccolor;
 		}
 		
 		var elist = document.getElementsByClassName('e');
 		for (var i = 0; i < elist.length; i++){
-			elist[i].style.color =  document.getElementById("ecolor").value;
+			elist[i].style.color = ecolor;
 		}
 		
 		var hlist = document.getElementsByClassName('h');
 		for (var i = 0; i < hlist.length; i++){
-			hlist[i].style.color =  document.getElementById("hcolor").value;
+			hlist[i].style.color = hcolor;
 		}
-	});
+	}
+	
 	
 	function toggleRefresh(){
 		console.log("Toggled Refresh");
 		var checkBox = document.getElementById("togglerefresh");
-		if(checkBox.checked == true){
+		var checkBoxOriginal = document.getElementById("togglerefresh-original");
+		
+		// Sync checkboxes
+		if (checkBox) {
+			if (checkBoxOriginal) checkBoxOriginal.checked = checkBox.checked;
+		} else if (checkBoxOriginal) {
+			checkBox = checkBoxOriginal;
+		}
+		
+		if(checkBox && checkBox.checked == true){
 			location.reload();
 		}
 		else{
@@ -392,6 +1017,15 @@
 	function toggleRows(checkboxid, rowid){
 		var checkBox = document.getElementById(checkboxid);
 		var rows = document.getElementsByClassName(rowid);
+		
+		// Sync with the other view's checkbox
+		if (checkboxid && checkboxid.includes('-original')) {
+			var otherCheckbox = document.getElementById(checkboxid.replace('-original', ''));
+			if (otherCheckbox) otherCheckbox.checked = checkBox.checked;
+		} else if (checkboxid) {
+			var otherCheckbox = document.getElementById(checkboxid + '-original');
+			if (otherCheckbox) otherCheckbox.checked = checkBox.checked;
+		}
 		
 		for(var i = 0; i < rows.length; i++)
 		{
@@ -466,43 +1100,83 @@
 		return counterstr;
 	}
 	
+	// Image generation for modern view
 	$('#genimage').on('click', function() {
-		table = document.getElementById('resultdisplay')
-		html2canvas(table,{scale:1, scrollY: (window.pageYOffset * -1)}).then(function(canvas) {
-		const myNode = document.getElementById("imgoutput");
-		while (myNode.firstChild) {
-			myNode.removeChild(myNode.firstChild);
-		 }
-		document.getElementById('imgoutput').append(canvas);
-		});
-	});
-	
-	$('#genimage').on('click', function() {
-		table = document.getElementById('mytable')
+		var table = document.getElementById('mytable');
+		var imgOutput = document.getElementById('imgoutput');
+		if (!table || !imgOutput) return;
+		
 		html2canvas(table,{scrollY: (window.pageYOffset * -1)}).then(function(canvas) {
-		const myNode = document.getElementById("imgoutput");
-		while (myNode.firstChild) {
-			myNode.removeChild(myNode.firstChild);
-		 }
-		document.getElementById('imgoutput').append(canvas);
+			const myNode = imgOutput;
+			while (myNode.firstChild) {
+				myNode.removeChild(myNode.firstChild);
+			}
+			myNode.appendChild(canvas);
+			document.getElementById('saveimagediv').style.display = "inline";
 		});
-		document.getElementById('saveimagediv').style.display = "inline";
 	});	
 
 	$('#genimagewlegend').on('click', function() {
-		table = document.getElementById('fullresults')
+		var table = document.getElementById('fullresults');
+		var imgOutput = document.getElementById('imgoutput');
+		if (!table || !imgOutput) return;
+		
 		html2canvas(table,{scrollY: (window.pageYOffset * -1)}).then(function(canvas) {
-		const myNode = document.getElementById("imgoutput");
-		while (myNode.firstChild) {
-			myNode.removeChild(myNode.firstChild);
-		 }
-		document.getElementById('imgoutput').append(canvas);
+			const myNode = imgOutput;
+			while (myNode.firstChild) {
+				myNode.removeChild(myNode.firstChild);
+			}
+			myNode.appendChild(canvas);
+			document.getElementById('saveimagediv').style.display = "inline";
 		});
-		document.getElementById('saveimagediv').style.display = "inline";
 	});
 
+	// Image generation for original view
+	$('#genimage-original').on('click', function() {
+		var table = document.getElementById('mytable-original');
+		var imgOutput = document.getElementById('imgoutput-original');
+		if (!table || !imgOutput) return;
+		
+		html2canvas(table,{scrollY: (window.pageYOffset * -1)}).then(function(canvas) {
+			const myNode = imgOutput;
+			while (myNode.firstChild) {
+				myNode.removeChild(myNode.firstChild);
+			}
+			myNode.appendChild(canvas);
+			document.getElementById('saveimagediv-original').style.display = "inline";
+		});
+	});	
+
+	$('#genimagewlegend-original').on('click', function() {
+		var table = document.getElementById('fullresults-original');
+		var imgOutput = document.getElementById('imgoutput-original');
+		if (!table || !imgOutput) return;
+		
+		html2canvas(table,{scrollY: (window.pageYOffset * -1)}).then(function(canvas) {
+			const myNode = imgOutput;
+			while (myNode.firstChild) {
+				myNode.removeChild(myNode.firstChild);
+			}
+			myNode.appendChild(canvas);
+			document.getElementById('saveimagediv-original').style.display = "inline";
+		});
+	});
+
+	// Save image handlers
 	$('#saveimage').on('click', function() {
-		var canvas = document.getElementsByTagName("canvas")[0];
+		var canvas = document.querySelector('#imgoutput canvas');
+		if (!canvas) return;
+		imglink = canvas.toDataURL("image/png", 1.0);
+
+		var saveEle = document.createElement('a');
+		saveEle.href = imglink;
+		saveEle.download = "output.png";
+		saveEle.click();
+	});
+	
+	$('#saveimage-original').on('click', function() {
+		var canvas = document.querySelector('#imgoutput-original canvas');
+		if (!canvas) return;
 		imglink = canvas.toDataURL("image/png", 1.0);
 
 		var saveEle = document.createElement('a');
@@ -522,5 +1196,7 @@
 		console.log("WAT");
 	}
 	</script>
+		</main>
+	</div>
 </body>
 </html>

@@ -48,6 +48,21 @@ create_table_query = '''CREATE TABLE IF NOT EXISTS seqtable
           SSPROSTAT INT,
           SSPROMSG TEXT,
         
+          PHDPSIPRED TEXT,
+          PHDPSICONF TEXT,
+          PHDPSISTAT INT,
+          PHDPSIMSG TEXT,
+
+          PROFSECPRED TEXT,
+          PROFSECCONF TEXT,
+          PROFSECSTAT INT,
+          PROFSECMSG TEXT,
+
+          PREDATORPRED TEXT,
+          PREDATORCONF TEXT,
+          PREDATORSTAT INT,
+          PREDATORMSG TEXT,
+        
       MAJORITYVOTE TEXT,
       PDB TEXT,
       PDBID TEXT,

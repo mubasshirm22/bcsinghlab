@@ -38,9 +38,16 @@ def get(seq):
 	
 	result_url = r.url + 'results.out'
 	
-	requesturl = batchtools.requestWait(result_url, 'Yaspin Not Ready')
+	# Yaspin can be slow; wait up to 45 minutes (2700s) like other services
+	requesturl = batchtools.requestWait(result_url, 'Yaspin Not Ready', 20, 2700)
 	
 	if requesturl:
+		# Help debug by printing a snippet of the raw Yaspin output
+		try:
+			print("Yaspin RAW (first 400 chars):", requesturl.text[:400])
+		except Exception:
+			pass
+		
 		raw = requesturl.text.splitlines()
 		
 		for i in range(len(raw)):		
@@ -54,8 +61,8 @@ def get(seq):
 		SS.status = 1
 		print("Yaspin Complete")
 	else:
-		SS.pred += "failed to respond in time"
-		SS.conf += "failed to respond in time"
+		SS.pred += "failed to respond in time (Yaspin results.out did not become available)"
+		SS.conf += "failed to respond in time (Yaspin results.out did not become available)"
 		SS.status = 2 #error status
 		print("YASPIN failed: No response")
 	return SS

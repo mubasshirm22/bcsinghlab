@@ -6,10 +6,11 @@ import re
 
 class SubmissionForm(FlaskForm):
 	
+	# Sequence is now optional if a valid structureId+chainId is provided.
 	seqtext = TextAreaField('Sequence', [
-		validators.Required("Sequence required."), 
+		validators.Optional(),
 		validators.Length(min=30,max=4000, message="Sequence must be between 40 and 4000 characters"),
-		validators.Regexp(regex='^[ARNDCEQGHILKMFPSTWYV\s]*$', flags = re.IGNORECASE, message="Invalid Characters")], 
+		validators.Regexp(regex='^[ARNDCEQGHILKMFPSTWYV\s]*$', flags = re.IGNORECASE, message="Invalid Characters")],
 		widget=TextArea(), default= "")
 	email = StringField('Email (Optional):', [validators.Email(), validators.Optional()])
 	
@@ -20,6 +21,9 @@ class SubmissionForm(FlaskForm):
 	Sable = BooleanField('SABLE', [validators.Optional()], default="checked")
 	Yaspin = BooleanField('YASPIN', [validators.Optional()], default="checked")
 	SSPro = BooleanField('SSPRO', [validators.Optional()], default="checked")
+	PHDpsi = BooleanField('PHDpsi', [validators.Optional()], default=False)
+	PROFsec = BooleanField('PROFsec', [validators.Optional()], default=False)
+	Predator = BooleanField('Predator', [validators.Optional()], default=False)
 	
 	structureId = StringField('Structure Id:',[ 
 		validators.Optional(),
@@ -42,8 +46,15 @@ class SubmissionForm(FlaskForm):
 		validated = True
 		
 		#Check if at least one site selected
-		if not self.JPred.data and not self.PSI.data and not self.PSS.data and not self.RaptorX.data and not self.Sable.data and not self.Yaspin.data and not self.SSPro.data:
+		if not self.JPred.data and not self.PSI.data and not self.PSS.data and not self.RaptorX.data and not self.Sable.data and not self.Yaspin.data and not self.SSPro.data and not self.PHDpsi.data and not self.PROFsec.data and not self.Predator.data:
 			self.JPred.errors.append('At least one site must be selected.')
+			validated = False
+
+		# Require either a sequence OR a complete structure+chain pair
+		seq_filled = bool(self.seqtext.data and self.seqtext.data.strip())
+		has_pdb = bool(self.structureId.data and self.chainId.data)
+		if not seq_filled and not has_pdb:
+			self.seqtext.errors.append('Provide either a sequence or a structure ID and chain.')
 			validated = False
 		
 		#If at least one field is filled, the other must be filled as well

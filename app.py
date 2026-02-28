@@ -2,7 +2,7 @@ import json
 import time
 import os
 from lxml import html
-from services import ss, psi, jpred, raptorx, pss, sable, sspro, yaspin, emailtools, htmlmaker, batchtools, maketable
+from services import ss, psi, jpred, raptorx, pss, sable, sspro, yaspin, phdpsi, profsec, predator, emailtools, htmlmaker, batchtools, maketable
 from datetime import datetime
 
 from forms import SubmissionForm
@@ -66,7 +66,11 @@ def check_service_health():
 		"JPred": "http://www.compbio.dundee.ac.uk/jpred4/",
 		"PSI": "http://bioinf.cs.ucl.ac.uk/psipred/",
 		"Sable": "http://sable.cchmc.org/",
-		"SSPro": "http://scratch.proteomics.ics.uci.edu/"
+		"SSPro": "http://scratch.proteomics.ics.uci.edu/",
+		"Yaspin": "http://www.ibi.vu.nl/programs/yaspinwww/",
+		"PHDpsi": "https://predictprotein.org/",
+		"PROFsec": "https://predictprotein.org/",
+		"Predator": "http://npsa-pbil.ibcp.fr/"
 	}
 	
 	status = {}
@@ -80,6 +84,26 @@ def check_service_health():
 		except:
 			status[service_name] = "DOWN"
 	
+	# Check STRIDE (PDB service) - uses POST endpoint
+	try:
+		stride_url = "https://webclu.bio.wzw.tum.de/cgi-bin/stride/stridecgi.py"
+		# Try a simple POST with minimal data to check if server is reachable
+		test_data = {
+			"pdbid": "TEST",
+			"paste_field": "",
+			"action": "compute",
+			"contact_threshold": "6",
+			"sensitive": "true"
+		}
+		response = requests.post(stride_url, data=test_data, timeout=5)
+		# Server should respond (even if with an error about invalid PDB ID)
+		if response.status_code == 200:
+			status["STRIDE"] = "UP"
+		else:
+			status["STRIDE"] = "DOWN"
+	except:
+		status["STRIDE"] = "DOWN"
+	
 	return status
 
 #Dictionary containing sites and their classes
@@ -89,8 +113,11 @@ siteDict = {
 	#"PSS": pss,
 	#"RaptorX": raptorx,
 	"Sable": sable,
-	#"Yaspin": yaspin,
-	"SSPro": sspro
+	"Yaspin": yaspin,
+	"SSPro": sspro,
+	"PHDpsi": phdpsi,
+	"PROFsec": profsec,
+	"Predator": predator
 }
 
 siteLimit = {
@@ -99,8 +126,11 @@ siteLimit = {
 	#"PSS": 3,
 	#"RaptorX": 20,
 	"Sable": 20,
-	#"Yaspin": 3,
-	"SSPro": 5
+	"Yaspin": 3,
+	"SSPro": 5,
+	"PHDpsi": 5,
+	"PROFsec": 5,
+	"Predator": 5
 }
 
 
@@ -129,8 +159,11 @@ def hello(name=None):
 		#"PSS": 0,
 		#"RaptorX": 0,
 		"Sable": 0,
-		#"Yaspin": 0,
-		"SSPro": 0
+		"Yaspin": 0,
+		"SSPro": 0,
+		"PHDpsi": 0,
+		"PROFsec": 0,
+		"Predator": 0
 	}
 	for t in threading.enumerate():
 		if t.getName() in runningCounter.keys():
@@ -143,16 +176,24 @@ def hello(name=None):
 
 		if threading.activeCount() > 100:
 			return redirect(url_for('errorpage'))
+		# Normalize the typed sequence (remove whitespace) up front
+		clean_seq = ''.join(form.seqtext.data.split())
+		print("DEBUG: original form sequence length:", len(form.seqtext.data or ""))
+		print("DEBUG: cleaned form sequence length:", len(clean_seq))
+
 		post_data = {
-			'seqtext': ''.join(form.seqtext.data.split()),
+			'seqtext': clean_seq,
 			'email': form.email.data,
 			'JPred': form.JPred.data,
 			'PSI':   form.PSI.data,
 			#'PSS':   form.PSS.data,
 			#'RaptorX': form.RaptorX.data,
 			'Sable':   form.Sable.data,
-			#'Yaspin':   form.Yaspin.data,
+			'Yaspin':   form.Yaspin.data,
 			'SSPro':   form.SSPro.data,
+			'PHDpsi':   form.PHDpsi.data,
+			'PROFsec':   form.PROFsec.data,
+			'Predator':   form.Predator.data,
 			'submitbtn': 'Submit'
 			}
 
@@ -160,24 +201,35 @@ def hello(name=None):
 		post_data.update({'total_sites' : total_sites, 'completed': 0}) # add total into to post_data dictionary and a completed prediction counter
 		print(post_data)
 		seq = post_data['seqtext']
-
-		startTime = batchtools.randBase62()		
-
-		#if post_data['email'] != "": #send email to let users know input was received
-		#	emailtools.sendEmail(email_service, post_data['email'],"Prediction Input Received", "<div>Input received for the following sequence:</div><div>" + seq + "</div><div>Results with customization options will be displayed at the following link as soon as they are available:</div><div>" + siteurl + "/dboutput/" + startTime +"</div>")
-
+		print("DEBUG: initial seq length used for prediction:", len(seq))
+		
+		startTime = batchtools.randBase62()
+		
 		#Stores currently completed predictions
 		ssObject = []
-
+		
+		# Insert initial sequence (may be empty; will be updated if PDB succeeds)
 		dbinsert(startTime, seq)
-
+		
 		pdbdata = None
 		if form.structureId.data is not None:
-			pdbdata = batchtools.pdbget(form.structureId.data, form.chainId.data)
+			# Auto-convert PDB ID to uppercase (PDB IDs are always uppercase)
+			pdb_id = form.structureId.data.upper().strip()
+			chain_id = form.chainId.data.upper().strip() if form.chainId.data else None
+			pdbdata = batchtools.pdbget(pdb_id, chain_id)
 			if pdbdata is not None:
 				dbupdate(startTime, 'pdb', json.dumps(pdbdata))
 				dbupdate(startTime, 'seq', pdbdata['primary'])
 				seq = pdbdata['primary']
+				print("DEBUG: using PDB-derived sequence, length:", len(seq))
+			else:
+				print("DEBUG: pdbget returned None for", pdb_id, chain_id)
+		
+		# If after PDB lookup we still have no sequence, abort cleanly
+		if not seq:
+			statusMsg = "No valid sequence found. Please provide a sequence or a valid structure ID and chain."
+			# dbupdate(startTime, 'status', statusMsg)  # Commented out: status column doesn't exist in database
+			return redirect(url_for('showdboutput', var=startTime))
 		
 		sendData(seq, startTime, ssObject, post_data, pdbdata)
 		return redirect(url_for('showdboutput', var = startTime))
@@ -240,6 +292,9 @@ def showdboutput(var):
 	if outputjson == "[]":
 		return "not found"
 	try:
+		# Check if JSON is requested
+		if request.args.get('json') == '1':
+			return outputjson
 		return render_template('dboutput.html', data = outputjson)
 	except Exception as e:
 		return "not found"
@@ -257,32 +312,42 @@ def run(predService, seq, name, ssObject,
 			tempSS.pred = "Queue Full"
 			tempSS.conf = "Queue Full"
 			tempSS.status = -1
-			dbupdate(startTime, name + "msg", name + " didn't run because queue is full")
+			dbupdate(startTime, name + "msg", name + " – didn't run because the remote queue is full.")
 		else:
 			import time as time_module
 			start_time = time_module.time()
-			dbupdate(startTime, name + "msg", name + " is running...")
+			dbupdate(startTime, name + "msg", name + " – submitting job to remote server...")
 			try:
 				#tempSS = predService.get(seq, tcount)
 				tempSS = predService.get(seq)
 				elapsed_min = int((time_module.time() - start_time) / 60)
 				if tempSS.status == 1 or tempSS.status == 3:
-					dbupdate(startTime, name + "msg", name + " completed successfully after " + str(elapsed_min) + " minutes")
+					dbupdate(startTime, name + "msg",
+					         name + " – finished successfully in " + str(elapsed_min) + " minutes.")
 				elif tempSS.status == 2:
 					if "failed to respond after" in tempSS.pred:
-						dbupdate(startTime, name + "msg", name + " stopped working after trying for " + str(elapsed_min) + " minutes")
+						dbupdate(startTime, name + "msg",
+						         name + " – gave up after " + str(elapsed_min) +
+						         " minutes without a response (remote server might be slow or down).")
+					elif "Queue Full" in tempSS.pred:
+						dbupdate(startTime, name + "msg",
+						         name + " – didn't run because the remote queue is full.")
 					else:
-						dbupdate(startTime, name + "msg", name + " isn't working, it's not running anymore")
+						dbupdate(startTime, name + "msg",
+						         name + " – failed: " + tempSS.pred)
 				elif tempSS.status == 4:
-					dbupdate(startTime, name + "msg", name + " didn't run because sequence not accepted")
+					dbupdate(startTime, name + "msg",
+					         name + " – sequence not accepted by the server.")
 				else:
-					dbupdate(startTime, name + "msg", name + " is still running... (" + str(elapsed_min) + " minutes)")
+					dbupdate(startTime, name + "msg",
+					         name + " – still waiting after " + str(elapsed_min) +
+					         " minutes (may give up if the server doesn't respond).")
 			except Exception as e:
 				tempSS = ss.SS(name)
 				tempSS.pred = "Service Error: " + str(e)
 				tempSS.conf = "Service Error: " + str(e)
 				tempSS.status = 2
-				dbupdate(startTime, name + "msg", name + " didn't run because " + str(e))
+				dbupdate(startTime, name + "msg", name + " – didn't run because of a service error: " + str(e))
 				print(name + " failed with exception: " + str(e))
 		
 		dbupdate(startTime, tempSS.name + "pred", tempSS.pred)
@@ -313,7 +378,7 @@ def run(predService, seq, name, ssObject,
 						failedServices.append(ssobj.name + " didn't complete")
 			if failedServices:
 				statusMsg += " " + ". ".join(failedServices) + "."
-			dbupdate(startTime, 'status', statusMsg)
+			# dbupdate(startTime, 'status', statusMsg)  # Commented out: status column doesn't exist in database
 			if post_data['email'] != "": #if all completed and user email is not empty, send email
 				print ("Sending results to " + post_data['email'])
 				#create HTML and store it in post_data
@@ -344,7 +409,7 @@ def run(predService, seq, name, ssObject,
 			post_data['completed'] += 1
 			if post_data['completed'] == post_data['total_sites']:
 				statusMsg = "All services complete. " + name + " didn't run because thread error: " + str(e) + "."
-				dbupdate(startTime, 'status', statusMsg)
+				# dbupdate(startTime, 'status', statusMsg)  # Commented out: status column doesn't exist in database
 		except Exception as e2:
 			print("Failed to update database after thread error for " + name + ": " + str(e2))
 			import traceback

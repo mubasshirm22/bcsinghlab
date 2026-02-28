@@ -1,254 +1,282 @@
+<!DOCTYPE html>
 <html>
 <head>
 <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/1.4.8/socket.io.min.js"></script>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
-<link rel="stylesheet" type="text/css" href="{{url_for('static', filename='css/tooltip.css')}}">
+	<link rel="stylesheet" type="text/css" href="{{url_for('static', filename='css/style.css')}}?v=2.0">
+	<link rel="stylesheet" type="text/css" href="{{url_for('static', filename='css/tooltip.css')}}">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Secondary Structure Prediction Display</title>
+<title>Secondary Structure Prediction</title>
 </head>
-<body style="font-family:monospace;">	
-<div>
-	{% block content %}
-		<form method="POST" action=""> 
-			{{ form.hidden_tag() }}
-			{% if form.errors %}
-    				<ul class="errors">
-        				{% for field_name, field_errors in form.errors|dictsort if field_errors %}
-            					{% for error in field_errors %}
-                					<li> {{ error }}</li>
-            					{% endfor %}
-        				{% endfor %}
-    				</ul>
-			{% endif %}
-			{{ form.seqtext.label }}
-			<span class="tooltip">
-				?
-				<ul class="tooltiptext">
-					Enter a protein sequence for prediction.
-					<li>Only a single sequence is accepted.</li>
-					<li>Sequence must be between 40 and 4000 characters.</li>
-					<li>
-						Only the following characters are allowed:
-						<ul>
-							<li>A,R,N,D,C,E,Q,G,H,I,L,K,M,F,P,S,T,W,Y,V	</li>
-						</ul>
-					</li>
-					<li>Spaces will automatically be removed.</li>
-				</ul>
-			</span>
-			<br>
-			{{ form.seqtext(cols="50", rows="4") }}
-			<br>
-			<button id="clearbtn" type="button">Clear Sequence</button>
-			<button id="genbtn" type="button">Generate Random Sequence</button>
-			<br>
-			<!--{{ form.email.label }}
-			{{ form.email }}
-			<span class="tooltip">
-				?
-				<ul class="tooltiptext">
-					Results can be sent to a given email address.
-					<li>A confirmation email will be sent upon submission.</li>
-					<li>An email will be sent when all predictions are complete.</li>
-				</ul>
-			</span>
-			-->
-			<br>	
-			<table onclick = "checkCount()">
-				Send sequence to:
-				<span class="tooltip">
-					?
-					<ul class="tooltiptext">
-						Select which sites the sequence should be sent to for prediction.
-						<li>At least one site should be selected.</li>
-						<li>Hover over the site names to check their accepted sequence lengths.</li>
-					</ul>
-				</span>
-				<tr>
-					<td class="sitetooltip">
-						{{ form.JPred }}
-						{{ form.JPred.label }}
-						<div class="tooltiptext">Maximum Sequence Length: 800</div>
-					</td>
-					<td class="sitetooltip">
-						{{ form.PSI }}
-						{{ form.PSI.label }}
-						<div class="tooltiptext">Maximum Sequence Length: 1500</div>
-					</td>
-					<!--<td class="sitetooltip">
-						{{ form.PSS }}
-						{{ form.PSS.label }}
-						<div class="tooltiptext">Maximum Sequence Length: 4000</div>-->
-					</td>
-				</tr>
-				<tr>
-					<!--<td class="sitetooltip">
-						{{ form.RaptorX }}
-						{{ form.RaptorX.label }}
-						<div class="tooltiptext">Maximum Sequence Length: 4000</div>-->
-					<td class="sitetooltip">
-						{{ form.Sable }}
-						{{ form.Sable.label }}
-						<div class="tooltiptext">Maximum Sequence Length: 4000</div>
-					</td>
-					<!-- <td class="sitetooltip">
-						{{ form.Yaspin }}
-						{{ form.Yaspin.label }}
-						<div class="tooltiptext">Maximum Sequence Length: 4000</div>-->
-					</td>
-				</tr>
-				<tr>
-					<td class="sitetooltip">
-						{{ form.SSPro }}
-						{{ form.SSPro.label }}
-						<div class="tooltiptext">Maximum Sequence Length: 400</div>
-					</td>
-				</tr>
-			</table>
-			<br>
-			<div>
-				<input type="checkbox" id="knownSeq" onclick="knownToggle()">
-				Known Structure
-				<span class="tooltip">
-					?
-					<ul class="tooltiptext">
-						If the entered structure id and chain id are from a valid known structure, 
-						<br>then the known elements will be displayed in the output.
-						<li>Both the structure id and chain id must be entered.</li>
-						<li>Chain id's are case sensitive (a is not the same as A).</li>
-						<li>If a valid structure is given, it will be used as the input sequence instead,
-						<br>even if the inputted sequence does  not match it.
-						</li>
-					</ul>
-				</span>
-				<br>
-				{{ form.structureId.label }}
-				{{ form.structureId }}
-				{{ form.chainId.label }}
-				{{ form.chainId }}
+<body>
+	<header class="header">
+		<div class="header-content">
+			<a href="/" class="logo">SSPred</a>
+			<nav class="nav-links">
+				<a href="/">Submit</a>
+				<a href="/archive">Archive</a>
+			</nav>
+		</div>
+	</header>
+
+	<div class="main-container">
+		<aside class="sidebar">
+			<div class="sidebar-section">
+				<div class="sidebar-title">Navigation</div>
+				<a href="/" class="sidebar-link">Submit Sequence</a>
+				<a href="/archive" class="sidebar-link">View Archive</a>
 			</div>
-			<br>
-			<input type="reset">
-			{{ form.submitbtn() }}
-		</form>
-	{% endblock  %}
-</div>
+			<div class="sidebar-section">
+				<div class="sidebar-title">Service Status</div>
+				<div class="status-box" style="border: none; padding: 0; box-shadow: none; margin: 0;">
+					<div class="status-item" style="padding: 8px 0;">
+						<strong style="font-size: 13px;">PSI:</strong> 
+						<span class="status-badge {% if serviceStatus.PSI == 'UP' %}up{% else %}down{% endif %}" style="font-size: 11px; padding: 2px 8px;">{{serviceStatus.PSI}}</span>
+					</div>
+					<div class="status-item" style="padding: 8px 0;">
+						<strong style="font-size: 13px;">JPred:</strong> 
+						<span class="status-badge {% if serviceStatus.JPred == 'UP' %}up{% else %}down{% endif %}" style="font-size: 11px; padding: 2px 8px;">{{serviceStatus.JPred}}</span>
+					</div>
+					<div class="status-item" style="padding: 8px 0;">
+						<strong style="font-size: 13px;">Sable:</strong> 
+						<span class="status-badge {% if serviceStatus.Sable == 'UP' %}up{% else %}down{% endif %}" style="font-size: 11px; padding: 2px 8px;">{{serviceStatus.Sable}}</span>
+					</div>
+					<div class="status-item" style="padding: 8px 0;">
+						<strong style="font-size: 13px;">SSPro:</strong> 
+						<span class="status-badge {% if serviceStatus.SSPro == 'UP' %}up{% else %}down{% endif %}" style="font-size: 11px; padding: 2px 8px;">{{serviceStatus.SSPro}}</span>
+					</div>
+					<div class="status-item" style="padding: 8px 0;">
+						<strong style="font-size: 13px;">Yaspin:</strong> 
+						<span class="status-badge {% if serviceStatus.Yaspin == 'UP' %}up{% else %}down{% endif %}" style="font-size: 11px; padding: 2px 8px;">{{serviceStatus.Yaspin}}</span>
+					</div>
+					<div class="status-item" style="padding: 8px 0;">
+						<strong style="font-size: 13px;">PHDpsi:</strong> 
+						<span class="status-badge {% if serviceStatus.PHDpsi == 'UP' %}up{% else %}down{% endif %}" style="font-size: 11px; padding: 2px 8px;">{{serviceStatus.PHDpsi}}</span>
+					</div>
+					<div class="status-item" style="padding: 8px 0;">
+						<strong style="font-size: 13px;">PROFsec:</strong> 
+						<span class="status-badge {% if serviceStatus.PROFsec == 'UP' %}up{% else %}down{% endif %}" style="font-size: 11px; padding: 2px 8px;">{{serviceStatus.PROFsec}}</span>
+					</div>
+					<div class="status-item" style="padding: 8px 0;">
+						<strong style="font-size: 13px;">Predator:</strong> 
+						<span class="status-badge {% if serviceStatus.Predator == 'UP' %}up{% else %}down{% endif %}" style="font-size: 11px; padding: 2px 8px;">{{serviceStatus.Predator}}</span>
+					</div>
+					<div class="status-item" style="padding: 8px 0; border-bottom: none;">
+						<strong style="font-size: 13px;">Known PDB (STRIDE):</strong> 
+						<span class="status-badge {% if serviceStatus.STRIDE == 'UP' %}up{% else %}down{% endif %}" style="font-size: 11px; padding: 2px 8px;">{{serviceStatus.STRIDE}}</span>
+					</div>
+				</div>
+			</div>
+			<div class="sidebar-section">
+				<div class="sidebar-title">Active Jobs</div>
+				<div style="font-size: 13px; color: var(--text-secondary);">
+					<div style="padding: 6px 0;">PSI: <strong style="color: var(--primary);">{{counter.PSI}}</strong></div>
+					<div style="padding: 6px 0;">JPred: <strong style="color: var(--primary);">{{counter.JPred}}</strong></div>
+					<div style="padding: 6px 0;">Sable: <strong style="color: var(--primary);">{{counter.Sable}}</strong></div>
+					<div style="padding: 6px 0;">SSPro: <strong style="color: var(--primary);">{{counter.SSPro}}</strong> <span style="color: var(--text-light);">(MAX 5)</span></div>
+					<div style="padding: 6px 0;">Yaspin: <strong style="color: var(--primary);">{{counter.Yaspin}}</strong> <span style="color: var(--text-light);">(MAX 3)</span></div>
+					<div style="padding: 6px 0;">PHDpsi: <strong style="color: var(--primary);">{{counter.PHDpsi}}</strong> <span style="color: var(--text-light);">(MAX 5)</span></div>
+					<div style="padding: 6px 0;">PROFsec: <strong style="color: var(--primary);">{{counter.PROFsec}}</strong> <span style="color: var(--text-light);">(MAX 5)</span></div>
+					<div style="padding: 6px 0;">Predator: <strong style="color: var(--primary);">{{counter.Predator}}</strong> <span style="color: var(--text-light);">(MAX 5)</span></div>
+				</div>
+			</div>
+		</aside>
 
-Service Status:
-<br />&nbsp;&nbsp;&nbsp;&nbsp;PSI: {{serviceStatus.PSI}}
-<br />&nbsp;&nbsp;JPred: {{serviceStatus.JPred}}
-<br />&nbsp;&nbsp;Sable: {{serviceStatus.Sable}}
-<br />&nbsp;&nbsp;SSPro: {{serviceStatus.SSPro}}
-<br />
-<br />
-Instances Running:
-<br />&nbsp;&nbsp;&nbsp;&nbsp;PSI: {{counter.PSI}}
-<!-- <br />&nbsp;Yaspin: {{counter.Yaspin}} -->
-<!--<br />&nbsp;&nbsp;&nbsp;&nbsp;PSS: {{counter.PSS}} (MAX 3)-->
-<br />&nbsp;&nbsp;JPred: {{counter.JPred}}
-<br />&nbsp;&nbsp;Sable: {{counter.Sable}}
-<!-- <br />RaptorX: {{counter.RaptorX}}-->
-<br />&nbsp;&nbsp;SSPro: {{counter.SSPro}} (MAX 5)
-<br />
+		<main class="main-content">
+			<h1 class="page-title">Secondary Structure Prediction</h1>
+			<p class="page-subtitle">Predict protein secondary structure using multiple advanced algorithms</p>
 
+			{% block content %}
+			<form method="POST" action=""> 
+				{{ form.hidden_tag() }}
+				{% if form.errors %}
+					<ul class="errors">
+						{% for field_name, field_errors in form.errors|dictsort if field_errors %}
+							{% for error in field_errors %}
+								<li>{{ error }}</li>
+							{% endfor %}
+						{% endfor %}
+					</ul>
+				{% endif %}
 
-<div> 
------------------------------------------------------------------------------------
-<br />
-<br />
-<br />Upon submission, you will be redirected to a page showing your sequence 
-<br />The page will reload every 30 seconds displaying results as they are completed
-<br />
-<br />Typical Wait Times for Sequence of 150 Residues  
-<br />&nbsp;&nbsp;&nbsp;&nbsp;PSI: 1-7 minutes
-<!-- <br />&nbsp;Yaspin: 1-3 minutes (Often offline)-->
-<!--<br />&nbsp;&nbsp;&nbsp;&nbsp;PSS: 1-3 minutes	-->
-<br />&nbsp;&nbsp;JPred: 3-5 minutes
-<br />&nbsp;&nbsp;Sable: 5-7 minutes
-<!-- <br />RaptorX: 5-7 minutes	-->
-<br />&nbsp;&nbsp;SSPro: 8 minutes
-<br />
-<br />
-<br /><a href="/archive" target="_blank">All previously submitted results can be found by clicking here</a>
-<br />
-<br />
-<br />Sites Used:
-<br />&nbsp;&nbsp;&nbsp;&nbsp;PSI: <a href="http://bioinf.cs.ucl.ac.uk/psipred/">http://bioinf.cs.ucl.ac.uk/psipred/</a>
-<!-- <br />&nbsp;Yaspin: <a href="http://www.ibi.vu.nl/programs/yaspinwww/">http://www.ibi.vu.nl/programs/yaspinwww/</a>-->
-<!--<br />&nbsp;&nbsp;&nbsp;&nbsp;PSS: <a href="https://zhanglab.ccmb.med.umich.edu/PSSpred/">https://zhanglab.ccmb.med.umich.edu/PSSpred/</a>-->
-<br />&nbsp;&nbsp;JPred: <a href="http://www.compbio.dundee.ac.uk/jpred/">http://www.compbio.dundee.ac.uk/jpred/</a>
-<br />&nbsp;&nbsp;Sable: <a href="https://sable.cchmc.org/">https://sable.cchmc.org/</a>
-<!--<br />RaptorX: <a href="http://raptorx.uchicago.edu/StructurePropertyPred/predict/">http://raptorx.uchicago.edu/StructurePropertyPred/predict/</a>	-->
-<br />&nbsp;&nbsp;SSPro: <a href="http://scratch.proteomics.ics.uci.edu/index.html">http://scratch.proteomics.ics.uci.edu/index.html</a>
-<br />&nbsp;&nbsp;&nbsp;RCSB: <a href="https://www.rcsb.org/">https://www.rcsb.org/</a>
-</div>
+				<div class="form-section">
+					<div class="form-section-title">Protein Sequence</div>
+					<div class="form-group">
+						<label>
+							Enter Sequence
+							<span class="tooltip">
+								<ul class="tooltiptext">
+									Enter a protein sequence for prediction.
+									<li>Only a single sequence is accepted.</li>
+									<li>Sequence must be between 40 and 4000 characters.</li>
+									<li>Only the following characters are allowed: A,R,N,D,C,E,Q,G,H,I,L,K,M,F,P,S,T,W,Y,V</li>
+									<li>Spaces will automatically be removed.</li>
+								</ul>
+							</span>
+						</label>
+						{{ form.seqtext(cols="50", rows="6") }}
+						<div class="button-group">
+							<button id="clearbtn" type="button" class="btn btn-secondary">Clear</button>
+							<button id="genbtn" type="button" class="btn btn-secondary">Random Sequence</button>
+						</div>
+					</div>
+				</div>
 
+				<div class="form-section">
+					<div class="form-section-title">Prediction Services</div>
+					<div class="form-group">
+						<label>Select which services to use:</label>
+						<div class="services-grid" onclick="checkCount()">
+							<div class="service-option sitetooltip">
+								{{ form.JPred }}
+								{{ form.JPred.label }}
+								<div class="tooltiptext">Maximum Sequence Length: 800</div>
+							</div>
+							<div class="service-option sitetooltip">
+								{{ form.PSI }}
+								{{ form.PSI.label }}
+								<div class="tooltiptext">Maximum Sequence Length: 1500</div>
+							</div>
+							<div class="service-option sitetooltip">
+								{{ form.Sable }}
+								{{ form.Sable.label }}
+								<div class="tooltiptext">Maximum Sequence Length: 4000</div>
+							</div>
+							<div class="service-option sitetooltip">
+								{{ form.SSPro }}
+								{{ form.SSPro.label }}
+								<div class="tooltiptext">Maximum Sequence Length: 400</div>
+							</div>
+							<div class="service-option sitetooltip">
+								{{ form.Yaspin }}
+								{{ form.Yaspin.label }}
+								<div class="tooltiptext">Maximum Sequence Length: 4000</div>
+							</div>
+							<div class="service-option sitetooltip">
+								{{ form.PHDpsi }}
+								{{ form.PHDpsi.label }}
+								<div class="tooltiptext">Maximum Sequence Length: 4000</div>
+							</div>
+							<div class="service-option sitetooltip">
+								{{ form.PROFsec }}
+								{{ form.PROFsec.label }}
+								<div class="tooltiptext">Maximum Sequence Length: 4000</div>
+							</div>
+							<div class="service-option sitetooltip">
+								{{ form.Predator }}
+								{{ form.Predator.label }}
+								<div class="tooltiptext">Maximum Sequence Length: 4000</div>
+							</div>
+						</div>
+					</div>
+				</div>
 
-<script type="text/javascript" >
-	$('#clearbtn').on('click', function() {
-		$('#seqtext').val("");
-	});
+				<div class="form-section known-structure-section">
+					<div class="form-section-title">Known Structure (Optional)</div>
+					<div class="form-group">
+						<label>
+							<input type="checkbox" id="knownSeq" onclick="knownToggle()" style="width: auto; margin-right: 8px;">
+							Use PDB Structure
+							<span class="tooltip">
+								<ul class="tooltiptext">
+									If the entered structure id and chain id are from a valid known structure, 
+									then the known elements will be displayed in the output.
+									<li>Both the structure id and chain id must be entered.</li>
+									<li>Chain id's are case sensitive.</li>
+								</ul>
+							</span>
+						</label>
+						<div style="display: flex; gap: 16px; margin-top: 12px;">
+							<div class="form-group" style="margin: 0;">
+								{{ form.structureId.label }}
+								{{ form.structureId }}
+							</div>
+							<div class="form-group" style="margin: 0;">
+								{{ form.chainId.label }}
+								{{ form.chainId }}
+							</div>
+						</div>
+					</div>
+				</div>
 
-	$('#genbtn').on('click', function() {
-		$('#seqtext').val(randSeq());
-	});
+				<div class="button-group">
+					<input type="reset" class="btn btn-secondary" value="Reset">
+					{{ form.submitbtn(class="btn btn-primary") }}
+				</div>
+			</form>
+			{% endblock %}
 
-	function randSeq() {
-  		 var result           = '';
-   		 var characters       = 'ACDEFGHIKLMNPQRSTVWY';
-  		 var charactersLength = characters.length;
-		 var length = Math.floor(Math.random() * 140) + 60 
-   		 for ( var i = 0; i < length; i++ ) {
-    		 	result += characters.charAt(Math.floor(Math.random() * charactersLength));
-   		 }
-   		 return result;
-	}
-	
-	//Disable submission if no site is selected
-	function checkCount()
-	{
-		checks = $('input[type="checkbox"]:checked').length;
-		submit = document.getElementById('submitbtn');
-		
-		if(checks <= 0)
-			submit.disabled = true;
-		else
-			submit.disabled = false;
-	}
-	
-	//Disable known sequence entry if not known
-	function knownToggle()
-	{
-		toggle = document.getElementById('knownSeq');
-		structId = document.getElementById('structureId');
-		chainId = document.getElementById('chainId');
-		
-		if(toggle.checked)
-		{
-			structId.disabled = false;
-			chainId.disabled = false;
+			<div class="info-section">
+				<h3>How It Works</h3>
+				<p style="margin-bottom: 16px;">Upon submission, you will be redirected to a results page with real-time progress bars showing the status of each prediction service. The page automatically updates every few seconds to display results as they complete.</p>
+				
+				<h3 style="margin-top: 24px;">Typical Wait Times (Sequence of 150 Residues)</h3>
+				<ul>
+					<li><strong>PSI:</strong> 1-7 minutes</li>
+					<li><strong>JPred:</strong> 3-5 minutes</li>
+					<li><strong>Sable:</strong> 5-7 minutes</li>
+					<li><strong>SSPro:</strong> 8 minutes</li>
+				</ul>
+			</div>
+
+			<div class="info-section">
+				<h3>Prediction Services</h3>
+				<ul>
+					<li><strong>PSI:</strong> <a href="http://bioinf.cs.ucl.ac.uk/psipred/" target="_blank">PSIPRED</a></li>
+					<li><strong>JPred:</strong> <a href="http://www.compbio.dundee.ac.uk/jpred/" target="_blank">JPred4</a></li>
+					<li><strong>Sable:</strong> <a href="https://sable.cchmc.org/" target="_blank">SABLE</a></li>
+					<li><strong>SSPro:</strong> <a href="http://scratch.proteomics.ics.uci.edu/index.html" target="_blank">SSPro</a></li>
+					<li><strong>RCSB:</strong> <a href="https://www.rcsb.org/" target="_blank">Protein Data Bank</a></li>
+				</ul>
+			</div>
+		</main>
+	</div>
+
+	<script type="text/javascript">
+		$('#clearbtn').on('click', function() {
+			$('#seqtext').val("");
+		});
+
+		$('#genbtn').on('click', function() {
+			$('#seqtext').val(randSeq());
+		});
+
+		function randSeq() {
+			var result = '';
+			var characters = 'ACDEFGHIKLMNPQRSTVWY';
+			var charactersLength = characters.length;
+			var length = Math.floor(Math.random() * 140) + 60;
+			for (var i = 0; i < length; i++) {
+				result += characters.charAt(Math.floor(Math.random() * charactersLength));
+			}
+			return result;
 		}
-		else
-		{
-			structId.disabled = true;
-			chainId.disabled = true;
-			structId.value = "";
-			chainId.value = "";
+
+		function checkCount() {
+			checks = $('input[type="checkbox"]:checked').length;
+			submit = document.getElementById('submitbtn');
+			if(checks <= 0)
+				submit.disabled = true;
+			else
+				submit.disabled = false;
 		}
-	}
-	
-	// Display a message about color coding if user is using IE
-	var ua = window.navigator.userAgent;
-	var isIE = /MSIE|Trident/.test(ua);
-	
-	if(isIE)
-	{
-		ieDiv = document.getElementById("colorCodeIE");
-		ieDiv.style.display = 'block';
-	}
-	
-	knownToggle();
-	
-</script>
+
+		function knownToggle() {
+			toggle = document.getElementById('knownSeq');
+			structId = document.getElementById('structureId');
+			chainId = document.getElementById('chainId');
+			if(toggle.checked) {
+				structId.disabled = false;
+				chainId.disabled = false;
+			} else {
+				structId.disabled = true;
+				chainId.disabled = true;
+				structId.value = "";
+				chainId.value = "";
+			}
+		}
+
+		knownToggle();
+	</script>
 </body>
 </html>
