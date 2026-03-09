@@ -19,30 +19,25 @@ def get(seq):
 		
 	session = GuerrillaMailSession()	#Creates GuerrillaMail session
 	email_address = session.get_session_state()['email_address'] #retrieves temp email address
-		
-	payload = {'REPLY-E-MAIL': email_address, 
-		'TARGET-NAME': 'testprot', 
-		'SEQUENCE': seq}
-	r= requests.post('https://zhanglab.ccmb.med.umich.edu/cgi-bin/PSSpred.pl', data=payload)
 
-	soup = BeautifulSoup(r.text, 'html.parser')
-	
-	#Exit if no links available in the response
-	if soup.a is None: 
-		SS.pred = "Failed to submit, server possibly under load"
-		SS.conf = "Failed to submit, server possibly under load"
-		SS.status = 2
-		return SS
+	randName = batchtools.randBase62()
+	fasta_seq = '>testprot\n' + seq
 
-	ssurl = soup.a.get('href')
+	payload = {'REPLY-E-MAIL': email_address,
+		'TARGET-NAME': randName,
+		'SEQUENCE': fasta_seq}
+	files = {'seq_file': ('', b'', 'application/octet-stream')}
+	r = requests.post('https://aideepmed.com/PSSpred/bin/receive.cgi', data=payload, files=files)
 
-	ssurl = ssurl + '/seq.SS'
-	
-	#Around 15 min for 4000
-	requesturl = batchtools.requestWait(ssurl, "PSSpred Not Ready")
+	print("PSSPred submit status:", r.status_code)
+	print("PSSPred submit response:", r.text[:300])
 
-	if requesturl:
-		raw = requesturl.text.splitlines()
+	# Results are emailed; wait for email containing the job name
+	query = 'from:(PSSpred) subject:(PSSpred) ' + randName
+	email_id, message = batchtools.emailRequestWait(session, query, "Name: ", randName, "PSSpred Not Ready", 30, 2700)
+
+	if email_id:
+		raw = message.splitlines()
 		for i in range(len(raw)):
 			if raw[i].startswith("conf"):
 				SS.conf += raw[i][6:].strip()

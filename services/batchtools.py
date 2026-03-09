@@ -37,7 +37,7 @@ def majorityVote(seq, ssObject):
 		eCount = [0] * seqLength
 		
 		for i in ssObject:
-			if i.status == 1 or i.status == 3:
+			if (i.status == 1 or i.status == 3) and len(i.pred) == seqLength:
 				for j in range(0, seqLength):
 					if i.pred[j] == 'C':
 						cCount[j] += 1

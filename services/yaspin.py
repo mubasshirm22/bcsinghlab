@@ -19,15 +19,17 @@ def get(seq):
 	session = GuerrillaMailSession()	#Creates GuerrillaMail session
 	email_address = session.get_session_state()['email_address'] #retrieves temp email address
 	
-	payload = {'seq': seq,
+	fasta_seq = '>testprot\n' + seq
+
+	payload = {'seq': fasta_seq,
 	'mbjob[description]': 'testprot',
-	'nnmethod': 'dssp', 
-	'smethod': 'nr', 
-	'yaspin_align': 'YASPIN prediction', 
+	'nnmethod': 'dssp',
+	'smethod': 'nr',
+	'yaspin_align': 'YASPIN prediction',
 	'email': email_address}
-	
-	fasta = {'seq_file': ''}
-	r= requests.post('http://www.ibi.vu.nl/programs/yaspinwww/', data = payload, files = fasta)
+
+	fasta = {'seq_file': ('', b'', 'application/octet-stream'), 'pssm_file': ('', b'', 'application/octet-stream')}
+	r= requests.post('https://zeus.few.vu.nl/programs/yaspinwww/', data = payload, files = fasta)
 	
 	if (r.status_code == 500):
 		SS.pred += "Server Down"

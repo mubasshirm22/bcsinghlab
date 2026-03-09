@@ -69,7 +69,7 @@ def get(seq):
 		
 		#Cancel after 20 min
 		stime = time.time()
-		while treelist != [] or time.time() > stime + 1200:
+		while treelist != [] and time.time() < stime + 1200:
 			print('RaptorX Not Ready')
 			time.sleep(20)
 			raw = requests.get(url).text

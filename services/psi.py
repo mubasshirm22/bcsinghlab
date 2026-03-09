@@ -6,136 +6,143 @@ from services import ss, batchtools
 
 
 def get(seq):
-	print("DEBUG[PSI]: received sequence length:", len(seq))
-	
+
 	SS = ss.SS("PSI")
 
 	if (len(seq) < 30 or len(seq) > 1500):
 		if len(seq) < 30:
-			SS.pred += "Sequence is too short (minimum 30 amino acids, got " + str(len(seq)) + ")"
-			SS.conf += "Sequence is too short (minimum 30 amino acids, got " + str(len(seq)) + ")"
+			SS.pred += "Sequence is too short (minimum 30 amino acids)"
+			SS.conf += "Sequence is too short (minimum 30 amino acids)"
 		else:
-			SS.pred += "Sequence is too long (maximum 1500 amino acids, got " + str(len(seq)) + ")"
-			SS.conf += "Sequence is too long (maximum 1500 amino acids, got " + str(len(seq)) + ")"
+			SS.pred += "Sequence is too long (maximum 1500 amino acids)"
+			SS.conf += "Sequence is too long (maximum 1500 amino acids)"
 		SS.status = 2
-		print("PsiPred failed: Sequence length issue - length:", len(seq))
-		return SS 
-		
+		return SS
+
 	session = GuerrillaMailSession()
 	email_address = session.get_session_state()['email_address']
-	
-	url = 'http://bioinf.cs.ucl.ac.uk/psipred/api/submission/'
 
-	# PSIPRED expects FASTA-formatted input. Wrap the raw sequence in a fixed
-	# hidden FASTA header so the user can still just paste a plain sequence.
-	fasta_seq = ">tr|B0R5N9|B0R5N9\n" + seq
-	print("DEBUG[PSI]: FASTA format being sent (first 150 chars):", repr(fasta_seq[:150]))
+	fasta_seq = ">query\n" + seq
 
-	payload = {'input_data': fasta_seq}
-	data = {
-		'job': 'psipred',
-		'submission_name': 'testing',
-		'email': email_address,
-	}
-	
 	try:
-		r = requests.post(url, data=data, files=payload, headers={'accept': 'application/json'}, timeout=30)
-		print("PSI submit response status:", r.status_code)
-		print("PSI submit response headers:", dict(r.headers))
+		r = requests.post(
+			'https://bioinf.cs.ucl.ac.uk/psipred/api/submission/',
+			data={
+				'job': 'psipred',
+				'submission_name': 'sspred',
+				'email': email_address,
+			},
+			files={
+				'input_data': ('sequence.fasta', fasta_seq.encode(), 'text/plain')
+			},
+			headers={'accept': 'application/json'},
+			timeout=30
+		)
+
+		if r.status_code not in (200, 201):
+			SS.pred += "PSIPRED server returned HTTP " + str(r.status_code)
+			SS.conf += "PSIPRED server returned HTTP " + str(r.status_code)
+			SS.status = 2
+			print("PsiPred failed: HTTP", r.status_code)
+			return SS
+
+		print("PSI raw response body:", repr(r.text[:500]))
+
 		try:
-			print("PSI submit response body (truncated):", r.text[:500])
-		except Exception:
-			pass
-		
-		# Check HTTP status first
-		if r.status_code != 200:
-			error_msg = f"PSIPRED server returned HTTP {r.status_code}"
-			if r.status_code == 500:
-				error_msg += " (Internal Server Error - PSIPRED backend may be down)"
-			elif r.status_code == 400:
-				error_msg += " (Bad Request - check sequence format)"
-			elif r.status_code == 503:
-				error_msg += " (Service Unavailable)"
-			SS.pred += error_msg
-			SS.conf += error_msg
+			uuid = r.json()['UUID']
+		except Exception as e:
+			SS.pred += "Could not parse PSIPRED submit response: " + str(e)
+			SS.conf += "Could not parse PSIPRED submit response: " + str(e)
 			SS.status = 2
-			print("PsiPred failed:", error_msg)
-			return SS
-		
-		# Try to parse JSON response
-		try:
-			resp_json = r.json()
-		except ValueError as json_err:
-			error_msg = f"PSIPRED returned invalid JSON. Response: {r.text[:200]}"
-			SS.pred += error_msg
-			SS.conf += error_msg
-			SS.status = 2
-			print("PsiPred failed:", error_msg, "JSON error:", str(json_err))
-			return SS
-		
-		if 'UUID' not in resp_json:
-			error_msg = f"PSIPRED response missing UUID. Full response: {str(resp_json)}"
-			SS.pred += error_msg
-			SS.conf += error_msg
-			SS.status = 2
-			print("PsiPred failed:", error_msg)
-			return SS
-		
-		uuid = resp_json['UUID']
-		print("PSI job submitted successfully, UUID:", uuid)
-
-		jsonurl = 'http://bioinf.cs.ucl.ac.uk/psipred/api/submission/' + uuid + '?format=json'
-		r = requests.get(jsonurl, timeout=30)
-		
-		if r.status_code != 200:
-			error_msg = f"Failed to check PSIPRED job status (HTTP {r.status_code})"
-			SS.pred += error_msg
-			SS.conf += error_msg
-			SS.status = 2
-			print("PsiPred failed:", error_msg)
+			print("PsiPred failed: bad submit response:", repr(r.text[:300]))
 			return SS
 
-		filesUUID = r.json()['submissions'][0]['UUID'] 
-		horiz = 'http://bioinf.cs.ucl.ac.uk/psipred/api/submissions/' + filesUUID + '.horiz'
-		
-		#Length 1500 takes around 5 min, increased timeout to 45 min
-		requesturl = batchtools.requestWait(horiz, 'PsiPred Not Ready', 20, 2700)
-		
-		if requesturl and requesturl.ok:
-			raw = requesturl.text.splitlines()
-			for i in range(len(raw)):
-				raw[i] = raw[i].strip()
-				if raw[i].startswith("Conf"):
-					SS.conf += raw[i][6:]
-				if raw[i].startswith("Pred"):
-					SS.pred += raw[i][6:]
-					
-			SS.status = 1
-			print("PsiPred Complete")
-		else:
-			SS.pred += "PSIPRED job timed out after 45 minutes (results not available)"
-			SS.conf += "PSIPRED job timed out after 45 minutes (results not available)"
-			SS.status = 2
-			print("PsiPred failed: No response after 45 minutes")
+		print("PSI job submitted, UUID:", uuid)
 
-	except requests.RequestException as req_err:
-		error_msg = f"Network error contacting PSIPRED: {str(req_err)}"
-		SS.pred += error_msg
-		SS.conf += error_msg
+		# Poll submission status until Complete
+		# PSIPred uses ?format=json (no trailing slash) for the status endpoint
+		poll_url = 'https://bioinf.cs.ucl.ac.uk/psipred/api/submission/' + uuid + '?format=json'
+		stime = time.time()
+		state = ''
+		data = {}
+
+		while state != 'Complete' and time.time() < stime + 2700:
+			print('PsiPred Not Ready')
+			resp = requests.get(poll_url, headers={'accept': 'application/json'}, timeout=30)
+			print("PSI poll status:", resp.status_code, "body:", repr(resp.text[:300]))
+			try:
+				data = resp.json()
+			except Exception:
+				print("PSI poll response not JSON, retrying in 20s...")
+				time.sleep(20)
+				continue
+			state = data.get('state', '')
+			print("PSI job state:", state)
+			if state == 'Error':
+				SS.pred += "PSIPRED job failed on server"
+				SS.conf += "PSIPRED job failed on server"
+				SS.status = 2
+				print("PsiPred failed: server-side error")
+				return SS
+			if state != 'Complete':
+				time.sleep(20)
+
+		if state != 'Complete':
+			SS.pred += "PSIPRED job timed out after 45 minutes"
+			SS.conf += "PSIPRED job timed out after 45 minutes"
+			SS.status = 2
+			print("PsiPred failed: timed out")
+			return SS
+
+		# Structure: data['submissions'][0]['results'] is a list of {name, data_path, ...}
+		# data_path is a relative path like /submissions/{uuid}.horiz
+		horiz_url = None
+		for sub in data.get('submissions', []):
+			for result_file in sub.get('results', []):
+				data_path = result_file.get('data_path', '')
+				if data_path.endswith('.horiz'):
+					horiz_url = 'https://bioinf.cs.ucl.ac.uk/psipred/api' + data_path
+					break
+			if horiz_url:
+				break
+
+		if not horiz_url:
+			SS.pred += "Could not find .horiz result file"
+			SS.conf += "Could not find .horiz result file"
+			SS.status = 2
+			print("PsiPred failed: no .horiz file in results")
+			return SS
+
+		horiz = requests.get(horiz_url, timeout=30)
+		print("PSI horiz URL:", horiz_url)
+		print("PSI horiz status:", horiz.status_code)
+		print("PSI horiz content:", repr(horiz.text[:400]))
+		raw = horiz.text.splitlines()
+		for line in raw:
+			line = line.strip()
+			if line.startswith("Conf"):
+				SS.conf += line[6:]
+			if line.startswith("Pred"):
+				SS.pred += line[6:]
+
+		SS.status = 1
+		print("PsiPred Complete")
+
+	except requests.RequestException as e:
+		SS.pred += "Network error: " + str(e)
+		SS.conf += "Network error: " + str(e)
 		SS.status = 2
-		print("PsiPred failed: Network error:", str(req_err))
+		print("PsiPred failed:", str(e))
 	except Exception as e:
-		error_msg = f"PSIPRED error: {type(e).__name__}: {str(e)}"
-		SS.pred += error_msg
-		SS.conf += error_msg
+		SS.pred += "Error: " + type(e).__name__ + ": " + str(e)
+		SS.conf += "Error: " + type(e).__name__ + ": " + str(e)
 		SS.status = 4
-		print("PsiPred failed:", error_msg)
+		print("PsiPred failed:", str(e))
 		import traceback
 		traceback.print_exc()
-			
+
 	print("PSI::")
 	print(SS.pred)
 	print(SS.conf)
-	
+
 	return SS
-	
