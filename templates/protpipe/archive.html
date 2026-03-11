@@ -1,0 +1,144 @@
+{% extends "lab/lab_base.html" %}
+{% block title %}ProtPipe — Job Archive{% endblock %}
+
+{% block content %}
+
+<section class="page-hero">
+  <div class="lab-container">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <span style="background:rgba(255,255,255,.15);color:#fff;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:4px 12px;border-radius:999px;">Job Archive</span>
+        </div>
+        <h1>ProtPipe Archive</h1>
+        <p>Your recent ProtPipe analyses — stored locally in this browser. Results are available as long as the job files exist on the server.</p>
+      </div>
+      <a href="/tools/protpipe" style="align-self:flex-start;padding:9px 18px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);border-radius:7px;color:#fff;font-size:0.85rem;font-weight:600;white-space:nowrap;text-decoration:none;">
+        New Analysis →
+      </a>
+    </div>
+  </div>
+</section>
+
+<section class="lab-section" style="padding:48px 0 80px;">
+  <div class="lab-container" style="max-width:860px;">
+
+    <!-- Info note -->
+    <div class="pipe-endpoint-note" style="margin-bottom:28px;">
+      <strong>Browser-local archive</strong>
+      Job history is stored in your browser's localStorage. Clearing browser data will remove this list, but job results remain accessible via direct URL as long as the server retains them.
+    </div>
+
+    <!-- Empty state -->
+    <div id="archive-empty" style="display:none;text-align:center;padding:64px 0;color:var(--text-light);">
+      <div style="font-size:2.5rem;margin-bottom:16px;opacity:.4;">&#x1F9EA;</div>
+      <p style="font-size:1rem;color:var(--text-secondary);margin-bottom:20px;">No past jobs found in this browser.</p>
+      <a href="/tools/protpipe" class="btn-lab btn-lab-primary" style="background:var(--accent-teal);">Run Your First Analysis →</a>
+    </div>
+
+    <!-- Archive table -->
+    <div id="archive-wrap" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+        <span id="archive-count" style="font-size:0.85rem;color:var(--text-light);"></span>
+        <button onclick="clearArchive()" class="pipe-btn-ghost" style="color:var(--error);border-color:var(--error);">Clear All History</button>
+      </div>
+      <table class="pipe-table" id="archive-table">
+        <thead>
+          <tr>
+            <th>Job ID</th>
+            <th>Input</th>
+            <th>Submitted</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="archive-tbody"></tbody>
+      </table>
+    </div>
+
+  </div>
+</section>
+
+<script>
+const ARCHIVE_KEY = 'protpipe_archive';
+
+function loadArchive() {
+  let archive = [];
+  try { archive = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]'); } catch(e) {}
+  archive = Array.isArray(archive) ? archive : [];
+
+  const emptyEl = document.getElementById('archive-empty');
+  const wrapEl  = document.getElementById('archive-wrap');
+  const countEl = document.getElementById('archive-count');
+  const tbody   = document.getElementById('archive-tbody');
+
+  if (!archive.length) {
+    emptyEl.style.display = '';
+    wrapEl.style.display  = 'none';
+    return;
+  }
+
+  emptyEl.style.display = 'none';
+  wrapEl.style.display  = '';
+  countEl.textContent   = archive.length + ' job' + (archive.length !== 1 ? 's' : '') + ' in history';
+
+  tbody.innerHTML = '';
+  // Show newest first
+  const sorted = [...archive].reverse();
+  sorted.forEach(function(entry) {
+    const tr = document.createElement('tr');
+    tr.className = 'pipe-archive-row';
+
+    const jobId  = entry.job_id  || '—';
+    const input  = entry.input   || '—';
+    const ts     = entry.ts      || '';
+    const date   = ts ? new Date(ts).toLocaleString() : '—';
+
+    tr.innerHTML = `
+      <td style="font-family:monospace;font-size:0.82rem;">
+        <button onclick="copyText('${jobId}', this)" title="Copy job ID"
+          style="background:none;border:none;cursor:pointer;padding:0;color:var(--primary);font-family:inherit;font-size:inherit;"
+        >${jobId}</button>
+      </td>
+      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(input)}">${escHtml(input.slice(0,40))}${input.length>40?'…':''}</td>
+      <td style="font-size:0.8rem;color:var(--text-light);">${escHtml(date)}</td>
+      <td style="white-space:nowrap;">
+        <a href="/tools/protpipe/results/${jobId}" class="btn-lab btn-lab-primary btn-sm" style="background:var(--accent-teal);margin-right:6px;">View Results</a>
+        <button onclick="removeEntry('${jobId}')" class="pipe-btn-ghost btn-sm" style="color:var(--error);border-color:var(--error);">Remove</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function escHtml(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text).then(function() {
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(function() { btn.textContent = orig; }, 1500);
+  });
+}
+
+function removeEntry(jobId) {
+  let archive = [];
+  try { archive = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]'); } catch(e) {}
+  archive = archive.filter(function(e) { return e.job_id !== jobId; });
+  localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archive));
+  loadArchive();
+}
+
+function clearArchive() {
+  if (!confirm('Remove all ProtPipe jobs from your browser history?')) return;
+  localStorage.removeItem(ARCHIVE_KEY);
+  loadArchive();
+}
+
+loadArchive();
+</script>
+
+{% endblock %}

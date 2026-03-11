@@ -20,8 +20,7 @@ def get(seq):
 	SS.status = 0
 	
 	randName = batchtools.randBase62()
-	session = GuerrillaMailSession()	#Creates GuerrillaMail session
-	email_address = session.get_session_state()['email_address'] #retrieves temp email address
+	email_address, session = batchtools.get_temp_email()
 
 	payload = {'txtSeq': seq, 
 	'seqName': randName,

@@ -17,8 +17,7 @@ def get(seq):
 		print("PSSPred failed: Sequence longer than 4000")
 		return SS #return SS so it will be readable as an ssObject
 		
-	session = GuerrillaMailSession()	#Creates GuerrillaMail session
-	email_address = session.get_session_state()['email_address'] #retrieves temp email address
+	email_address, session = batchtools.get_temp_email()
 
 	randName = batchtools.randBase62()
 	fasta_seq = '>testprot\n' + seq

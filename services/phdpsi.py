@@ -20,8 +20,7 @@ def get(seq):
 		print("PHDpsi failed: Sequence length issue")
 		return SS
 	
-	session = GuerrillaMailSession()
-	email_address = session.get_session_state()['email_address']
+	email_address, _session = batchtools.get_temp_email()
 	
 	# PredictProtein typically uses this endpoint
 	# Note: This may need adjustment based on actual server response

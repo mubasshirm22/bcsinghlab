@@ -1,0 +1,148 @@
+{% extends "lab/lab_base.html" %}
+{% block title %}Home{% endblock %}
+
+{% block content %}
+
+<!-- ── Hero ── -->
+<section class="lab-hero">
+  <div class="lab-hero-inner">
+    <p class="hero-eyebrow">Brooklyn College, CUNY · Department of Biology</p>
+    <h1 class="hero-title">Singh Lab</h1>
+    <p class="hero-sub">Bioinformatics Lab Brooklyn College — applying computer modeling to address important biological questions.</p>
+    <div class="hero-actions">
+      <a href="/research" class="btn-lab btn-lab-white">Explore Research</a>
+      <a href="/tools" class="btn-lab btn-lab-white-outline">View Our Tools</a>
+    </div>
+  </div>
+</section>
+
+<!-- ── About ── -->
+<section class="lab-section lab-section--alt">
+  <div class="lab-container">
+    <div style="max-width:720px;">
+      <p class="section-label">About</p>
+      <h2 class="section-title">Computational Biology at Brooklyn College</h2>
+      <p style="color:var(--text-secondary);line-height:1.8;font-size:1.05rem;margin-bottom:24px;">
+        Shaneen Singh is a professor of biology. Although trained as an experimental biologist, she has transitioned into the field of computational biology. The long-term research goal of her lab is to apply computer modeling to address important biological questions. She teaches courses in bioinformatics and mentors students both at the undergraduate and graduate level.
+      </p>
+      <a href="/team" class="btn-lab btn-lab-outline btn-sm">Meet the Team →</a>
+    </div>
+  </div>
+</section>
+
+<!-- ── Lab Tools ── -->
+<section class="lab-section">
+  <div class="lab-container">
+    <p class="section-label">Lab Software</p>
+    <h2 class="section-title" style="margin-bottom:8px;">Our Tools</h2>
+    <p class="section-subtitle" style="margin-bottom:36px;">Free bioinformatics tools developed by the Singh Lab.</p>
+
+    <div class="featured-tool-card" style="margin-bottom:24px;">
+      <div>
+        <span class="tool-badge">Active · Free to Use</span>
+        <h3>SSPred — Secondary Structure Predictor</h3>
+        <p>Consensus secondary structure prediction aggregating 8 servers — PSIPred, JPred4, SABLE, SSPro, YASPIN, PHDpsi, PROFsec, and Predator — with majority voting and PDB lookup.</p>
+        <div class="tool-meta">
+          <div class="tool-meta-item"><strong>8</strong> Servers</div>
+          <div class="tool-meta-item"><strong>30–4000</strong> AA</div>
+          <div class="tool-meta-item"><strong>PDB</strong> Lookup</div>
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <a href="/tools/sspred" class="btn-lab btn-lab-white">Launch SSPred →</a>
+          <a href="/tools/sspred/archive" class="btn-lab btn-lab-white-outline">Archive</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="featured-tool-card" style="background:linear-gradient(135deg,#134e4a 0%,#0d9488 100%);">
+      <div>
+        <span class="tool-badge" style="background:rgba(255,255,255,.15);">Beta · Free to Use</span>
+        <h3>ProtPipe — Protein Analysis Pipeline</h3>
+        <p>Submit a sequence or UniProt/NCBI accession and run automated homology search, Pfam domain annotation, signal peptide and TM topology prediction — with a domain architecture figure and downloadable report.</p>
+        <div class="tool-meta">
+          <div class="tool-meta-item"><strong>BLAST</strong> Homology</div>
+          <div class="tool-meta-item"><strong>Pfam</strong> Domains</div>
+          <div class="tool-meta-item"><strong>SP &amp; TM</strong> Topology</div>
+          <div class="tool-meta-item"><strong>SVG</strong> Figure</div>
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <a href="/tools/protpipe" class="btn-lab btn-lab-white" style="color:#0d9488;">Launch ProtPipe →</a>
+          <a href="/tools/protpipe/archive" class="btn-lab btn-lab-white-outline">Job Archive</a>
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align:right;margin-top:16px;">
+      <a href="/tools" class="btn-lab btn-lab-outline btn-sm">View All Tools →</a>
+    </div>
+  </div>
+</section>
+
+<!-- ── Research Highlights ── -->
+<section class="lab-section lab-section--alt">
+  <div class="lab-container">
+    <p class="section-label">Research</p>
+    <h2 class="section-title">What We Study</h2>
+    <p class="section-subtitle">Our work spans computational structure analysis, venom biology, genome-wide domain modeling, and molecular simulation.</p>
+    <div class="grid-4" style="margin-bottom:32px;">
+      <div class="research-card">
+        <div class="research-icon" style="background:#eff6ff;color:var(--primary);font-size:1rem;font-weight:700;">SS</div>
+        <h3>Protein Structure &amp; Function</h3>
+        <p>In silico domain architecture, protein-protein interactions, and motif analysis across diverse protein families.</p>
+      </div>
+      <div class="research-card">
+        <div class="research-icon" style="background:#f0fdf4;color:var(--accent-teal);font-size:1rem;font-weight:700;">VB</div>
+        <h3>Parasitoid Venom Biology</h3>
+        <p>Computational analysis of venom peptides and extracellular vesicle cargo from parasitoid wasps.</p>
+      </div>
+      <div class="research-card">
+        <div class="research-icon" style="background:#faf5ff;color:var(--accent-purple);font-size:1rem;font-weight:700;">GW</div>
+        <h3>Genome-Wide Domain Modeling</h3>
+        <p>Characterization of protein domain families including PH domains and kinase domains across genomes.</p>
+      </div>
+      <div class="research-card">
+        <div class="research-icon" style="background:#fffbeb;color:var(--accent-amber);font-size:1rem;font-weight:700;">MD</div>
+        <h3>Molecular Dynamics</h3>
+        <p>All-atom simulations to study peptide aggregation, amyloid fibril formation, and structural dynamics.</p>
+      </div>
+    </div>
+    <a href="/research" class="btn-lab btn-lab-primary btn-sm">View All Research →</a>
+  </div>
+</section>
+
+<!-- ── News ── -->
+<section class="lab-section">
+  <div class="lab-container">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:32px;flex-wrap:wrap;gap:16px;">
+      <div>
+        <p class="section-label">News</p>
+        <h2 class="section-title" style="margin-bottom:0;">Announcements</h2>
+      </div>
+    </div>
+    <div class="news-list" style="max-width:800px;">
+      <div class="news-item">
+        <div class="news-date">Mar 2026</div>
+        <div class="news-content">
+          <h4>SSPred v2.0 Launched</h4>
+          <p>Updated with support for 8 prediction servers, real-time progress tracking, PDB structure integration, and consensus majority voting.</p>
+        </div>
+      </div>
+      <div class="news-item">
+        <div class="news-date">2025</div>
+        <div class="news-content">
+          <h4>Guest Editor — MDPI Pathogens</h4>
+          <p>Prof. Singh serves as guest editor of the Special Issue "Computational Approaches in Mechanisms of Pathogenesis" in the open-access journal Pathogens.</p>
+        </div>
+      </div>
+      <div class="news-item">
+        <div class="news-date">2025</div>
+        <div class="news-content">
+          <h4>New Publication in Pathogens</h4>
+          <p>Chou et al. (including Singh S.) publish "Venomous Cargo: Diverse Toxin-Related Proteins Are Associated with Extracellular Vesicles in Parasitoid Wasp Venom." Pathogens 14(3). doi: 10.3390/pathogens14030255.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% endblock %}

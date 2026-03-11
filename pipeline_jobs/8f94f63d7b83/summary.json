@@ -1,0 +1,196 @@
+{
+  "job_id": "8f94f63d7b83",
+  "completed_at": "2026-03-11 00:46 UTC",
+  "retrieval": {
+    "status": "ok",
+    "sequence": "MIWRNVYCLLQMLSALTVVTSFNRFPNLLSEMMVVAMSDVAHPCNDFYKYVCDNWTRNFPRPNYYPVWSPEELTMDYLIDKIREVLESPNVDHNYFHVYKEKQFYDSCMDTDISVTEGRRLYSQIKSESEQARPHWQNVAEYYASKIGEVSLFHITLNSENQLVITKPVNTEVNKLLSGKLGRSLLVDYLNNNKQNLIYHRHPESDWNFEEEFYNFLSDLKELLTNPKSLLITVSIQELQEMYDNNCSSLGSSVSKIEWHRLLQKLSEPDINLEPSFQLLIDFEYVKGLCALLSDTQDDVIVRYLQFNFQMSYETLFHLNIFNSATGEEMTPLERSVKCITMIPITTGFYEILADSDEFYEREEFLNDLVERIKYELKLEIRNSWMDVLSKRKALKVVTDLSLHISKLNFPTLRKEISTTSYGFDVTTVSLLNWINFKKAQMVYKFELSLIHSQTKRRRKRHLIMNAFYEPNKHRILISPVMLFPPLFSLNAPIAYNFGRLGVTIGHEISHAFDYHRLDPKFGYTFQSNPYLNSTFQEKLKCVSDQYISLMVPTSTLVENMADIQGIKLAYKAMQRYFRDHPEAVRRNGFQHFEHFDNNKIFFVSFANKFCETRELPMPVTTHSPNDMRVIGSLLNMKEFGESFACPENTLMNPTKICDFWEPTYNPNMNLCSNFNCLRVK",
+    "header": "XP_043476092.1 neprilysin-3-like [Leptopilina heterotoma]",
+    "source": "ncbi",
+    "organism": "",
+    "error": ""
+  },
+  "properties": {
+    "length": 681,
+    "molecular_weight_da": 80045.71,
+    "isoelectric_point": 6.03,
+    "instability_index": 43.94,
+    "is_stable": false,
+    "gravy": -0.33,
+    "aromaticity": 0.1248,
+    "helix_fraction": 0.304,
+    "turn_fraction": 0.2746,
+    "sheet_fraction": 0.4023,
+    "amino_acid_count": {
+      "A": 21,
+      "C": 13,
+      "D": 32,
+      "E": 50,
+      "F": 43,
+      "G": 17,
+      "H": 20,
+      "I": 38,
+      "K": 39,
+      "L": 74,
+      "M": 23,
+      "N": 52,
+      "P": 32,
+      "Q": 22,
+      "R": 32,
+      "S": 54,
+      "T": 36,
+      "V": 41,
+      "W": 9,
+      "Y": 33
+    },
+    "amino_acid_percent": {
+      "A": 3.08,
+      "C": 1.91,
+      "D": 4.7,
+      "E": 7.34,
+      "F": 6.31,
+      "G": 2.5,
+      "H": 2.94,
+      "I": 5.58,
+      "K": 5.73,
+      "L": 10.87,
+      "M": 3.38,
+      "N": 7.64,
+      "P": 4.7,
+      "Q": 3.23,
+      "R": 4.7,
+      "S": 7.93,
+      "T": 5.29,
+      "V": 6.02,
+      "W": 1.32,
+      "Y": 4.85
+    },
+    "ambiguous_residues_replaced": 0
+  },
+  "blast": {
+    "database": "swissprot",
+    "hits": [
+      {
+        "accession": "W4VS99",
+        "title": "sp|W4VS99.1| RecName: Full=Neprilysin-1; Flags: Precursor [Trittame loki]",
+        "length": 722,
+        "e_value": 5.05219e-40,
+        "score": 404.0,
+        "identity_pct": 22.9,
+        "coverage_pct": 92.8,
+        "query_start": 30,
+        "query_end": 661
+      },
+      {
+        "accession": "Q18673",
+        "title": "sp|Q18673.3| RecName: Full=Neprilysin-1 [Caenorhabditis elegans]",
+        "length": 754,
+        "e_value": 2.23639e-37,
+        "score": 384.0,
+        "identity_pct": 24.7,
+        "coverage_pct": 90.9,
+        "query_start": 43,
+        "query_end": 661
+      },
+      {
+        "accession": "P42893",
+        "title": "sp|P42893.2| RecName: Full=Endothelin-converting enzyme 1; Short=ECE-1 [Rattus norvegicus]",
+        "length": 762,
+        "e_value": 3.97681e-37,
+        "score": 382.0,
+        "identity_pct": 23.9,
+        "coverage_pct": 95.9,
+        "query_start": 9,
+        "query_end": 661
+      },
+      {
+        "accession": "P97739",
+        "title": "sp|P97739.1| RecName: Full=Endothelin-converting enzyme 1; Short=ECE-1 [Cavia porcellus]",
+        "length": 754,
+        "e_value": 8.03452e-37,
+        "score": 380.0,
+        "identity_pct": 23.9,
+        "coverage_pct": 95.9,
+        "query_start": 9,
+        "query_end": 661
+      },
+      {
+        "accession": "P42892",
+        "title": "sp|P42892.2| RecName: Full=Endothelin-converting enzyme 1; Short=ECE-1 [Homo sapiens]",
+        "length": 770,
+        "e_value": 1.22783e-36,
+        "score": 378.0,
+        "identity_pct": 24.0,
+        "coverage_pct": 93.0,
+        "query_start": 29,
+        "query_end": 661
+      },
+      {
+        "accession": "Q4PZA2",
+        "title": "sp|Q4PZA2.1| RecName: Full=Endothelin-converting enzyme 1; Short=ECE-1 [Mus musculus]",
+        "length": 769,
+        "e_value": 2.01657e-36,
+        "score": 377.0,
+        "identity_pct": 23.9,
+        "coverage_pct": 95.9,
+        "query_start": 9,
+        "query_end": 661
+      },
+      {
+        "accession": "P42891",
+        "title": "sp|P42891.2| RecName: Full=Endothelin-converting enzyme 1; Short=ECE-1 [Bos taurus]",
+        "length": 754,
+        "e_value": 7.82714e-36,
+        "score": 372.0,
+        "identity_pct": 24.0,
+        "coverage_pct": 93.0,
+        "query_start": 29,
+        "query_end": 661
+      },
+      {
+        "accession": "Q9JMI0",
+        "title": "sp|Q9JMI0.2| RecName: Full=Endothelin-converting enzyme-like 1; AltName: Full=Damage-induced neuronal endopeptidase; Alt",
+        "length": 775,
+        "e_value": 1.36196e-35,
+        "score": 370.0,
+        "identity_pct": 23.5,
+        "coverage_pct": 94.1,
+        "query_start": 21,
+        "query_end": 661
+      },
+      {
+        "accession": "Q9JHL3",
+        "title": "sp|Q9JHL3.1| RecName: Full=Endothelin-converting enzyme-like 1; AltName: Full=Damage-induced neuronal endopeptidase; Alt",
+        "length": 775,
+        "e_value": 6.68937e-35,
+        "score": 365.0,
+        "identity_pct": 23.2,
+        "coverage_pct": 94.1,
+        "query_start": 21,
+        "query_end": 661
+      },
+      {
+        "accession": "P0DPD9",
+        "title": "sp|P0DPD9.1| RecName: Full=EEF1AKMT4-ECE2 readthrough transcript protein; Includes: RecName: Full=Methyltransferase-like",
+        "length": 881,
+        "e_value": 2.51614e-34,
+        "score": 361.0,
+        "identity_pct": 23.0,
+        "coverage_pct": 90.9,
+        "query_start": 43,
+        "query_end": 661
+      }
+    ]
+  },
+  "hmmer": {
+    "domains": []
+  },
+  "phobius": {
+    "has_signal_peptide": true,
+    "signal_peptide_end": 0,
+    "tm_count": 0,
+    "topology": "PREDICTION",
+    "tm_helices": []
+  },
+  "figure_ok": true,
+  "module_errors": {}
+}

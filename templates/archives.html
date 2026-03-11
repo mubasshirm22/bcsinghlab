@@ -1,129 +1,167 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/1.4.8/socket.io.min.js" type="text/javascript">
-	</script>
-	<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js">
-	</script>
-	<title>Archives</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/1.4.8/socket.io.min.js" type="text/javascript"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/lab.css') }}">
+  <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}">
+  <title>Archive — SSPred</title>
+  <style>
+    body { background: var(--bg); }
+    .archive-nav-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0 24px; height: 56px;
+    }
+    .archive-nav-bar .nav-logo { font-weight: 800; color: var(--primary); font-size: 1.1rem; text-decoration: none; }
+    .archive-nav-bar .nav-links { display: flex; gap: 4px; }
+    .archive-nav-bar .nav-links a {
+      font-size: 0.88rem; font-weight: 500; color: var(--text-secondary);
+      padding: 6px 12px; border-radius: 6px; text-decoration: none; transition: background .15s;
+    }
+    .archive-nav-bar .nav-links a:hover { background: var(--bg); color: var(--text); }
+    .archive-nav-bar .nav-links a.active { color: var(--primary); background: #eff6ff; }
+    .archive-wrap { max-width: 960px; margin: 0 auto; padding: 32px 24px 64px; }
+    .archive-header { margin-bottom: 24px; }
+    .archive-header h1 { font-size: 1.6rem; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .archive-header p { color: var(--text-secondary); font-size: 0.9rem; }
+    .archive-tip {
+      font-size: 0.82rem; color: var(--text-secondary);
+      background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px;
+      padding: 8px 14px; margin-bottom: 20px;
+    }
+    .archive-pagination { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+    .archive-pagination a {
+      display: inline-flex; align-items: center; padding: 8px 16px;
+      border-radius: 6px; font-size: 0.88rem; font-weight: 600;
+      border: 1px solid var(--border); background: var(--surface);
+      color: var(--text-secondary); text-decoration: none; transition: background .15s, color .15s;
+    }
+    .archive-pagination a:hover { background: var(--bg); color: var(--primary); }
+    .archive-pagination a[href=""] { pointer-events: none; opacity: .4; }
+    .archive-pagination .page-label { font-size: 0.85rem; color: var(--text-light); }
+    .archive-table {
+      width: 100%; border-collapse: collapse;
+      background: var(--surface); border-radius: 10px;
+      overflow: hidden; box-shadow: var(--shadow);
+    }
+    .archive-table thead tr { background: var(--bg); border-bottom: 2px solid var(--border); }
+    .archive-table th {
+      text-align: left; padding: 12px 16px;
+      font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--text-secondary);
+    }
+    .archive-table tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+    .archive-table tbody tr:last-child { border-bottom: none; }
+    .archive-table tbody tr:hover { background: #f8faff; }
+    .archive-table td { padding: 12px 16px; font-size: 0.88rem; color: var(--text); vertical-align: middle; }
+    .job-link {
+      font-family: monospace; font-size: 0.82rem; color: var(--primary);
+      background: #eff6ff; padding: 3px 8px; border-radius: 4px;
+      text-decoration: none; font-weight: 600;
+    }
+    .job-link:hover { background: #dbeafe; }
+    .time-cell { color: var(--text-secondary); font-size: 0.82rem; white-space: nowrap; }
+    .seq-cell {
+      font-family: monospace; font-size: 0.8rem; color: var(--text-secondary);
+      max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+  </style>
 </head>
-<body style="font-family:Consolas;">
-	<div><a id='home' href=''>Home</a></div>
-	<div>CTRL+F to find your sequence</div>
-	<div><a id='prevPage' style='display:initial' href=''>Previous</a>
-		&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-		<a id='nextPage' href=''>Next</a></div>
-	<table border="1" id="myTable">
-		<tbody>
-			<tr>
-				<td>Link</td>
-				<td>Time Created</td>
-				<td>Sequence</td>
-			</tr>
-		</tbody>
-	</table>
-	<script type="text/javascript">
+<body>
 
+  <div class="archive-nav-bar">
+    <a href="/tools/sspred" class="nav-logo">SSPred</a>
+    <div class="nav-links">
+      <a href="/tools/sspred">Submit</a>
+      <a href="/tools/sspred/archive" class="active">Archive</a>
+      <a href="/">Singh Lab</a>
+    </div>
+  </div>
 
-	   //var times = {{timedata}};
-	   //var names = {{namedata | safe}};
-	   //var seq = {{seqdata | safe}};
+  <div class="archive-wrap">
+    <div class="archive-header">
+      <h1>Job Archive</h1>
+      <p>Past prediction submissions — 20 per page, most recent first. Use Ctrl+F to search this page.</p>
+    </div>
 
-		var data = {{data | safe}};
-		var page = {{ pagenum }};
-		console.log(document.location.origin)
+    <div class="archive-tip">
+      Each Job ID links to that prediction's results page. Save the ID shown on your results page to find your job here later.
+    </div>
 
-		var prevNum = page - 1;
-		var nextNum = page + 1;
-		
+    <div class="archive-pagination">
+      <a id="prevPage" href="">← Previous</a>
+      <span class="page-label">Page <strong id="pageLabel"></strong></span>
+      <a id="nextPage" href="">Next →</a>
+    </div>
 
-		var prevURL = document.location.origin + '/archive/' + prevNum;
-		var nextURL = document.location.origin + '/archive/' + nextNum;
-		document.getElementById("home").setAttribute('href', document.location.origin);
-		document.getElementById("nextPage").setAttribute('href', nextURL);
-		document.getElementById("prevPage").setAttribute('href', prevURL);
+    <table class="archive-table" id="myTable">
+      <thead>
+        <tr>
+          <th>Job ID</th>
+          <th>Submitted</th>
+          <th>Sequence</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
 
-		if (prevNum < 1){
-			document.getElementById("prevPage").removeAttribute("href");
-		}
+    <div class="archive-pagination" style="margin-top:16px;">
+      <a id="prevPage2" href="">← Previous</a>
+      <span class="page-label">Page <strong id="pageLabel2"></strong></span>
+      <a id="nextPage2" href="">Next →</a>
+    </div>
+  </div>
 
-	   //$.each(times, function(index,value){
+  <script type="text/javascript">
+    var data = {{ data | safe }};
+    var page = {{ pagenum }};
 
-	   //});
+    document.getElementById('pageLabel').textContent = page;
+    document.getElementById('pageLabel2').textContent = page;
 
+    var prevNum = page - 1;
+    var nextNum = page + 1;
+    var base = document.location.origin + '/tools/sspred/archive/';
 
-		function decodeBase62(c){
-			code  = c;
-			var timestamp = 0;
-			var chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
-			for (var i=0; i < code.length; i++){
-				timestamp += chars.indexOf(code[(code.length-1) - i]) * Math.pow(62, i);
-			}
-			if (timestamp != 0){
-				timestamp = timestamp / 100;
-			}
-			return timestamp;
-		}
+    ['nextPage', 'nextPage2'].forEach(function(id) {
+      document.getElementById(id).setAttribute('href', base + nextNum);
+    });
+    ['prevPage', 'prevPage2'].forEach(function(id) {
+      if (prevNum >= 1) {
+        document.getElementById(id).setAttribute('href', base + prevNum);
+      }
+    });
 
+    function decodeBase62(c) {
+      var code = c;
+      var timestamp = 0;
+      var chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+      for (var i = 0; i < code.length; i++) {
+        timestamp += chars.indexOf(code[(code.length - 1) - i]) * Math.pow(62, i);
+      }
+      if (timestamp !== 0) { timestamp = timestamp / 100; }
+      return timestamp;
+    }
 
-	   for (var i=0; i < data.length; i++) {
-	       var time = new Date(decodeBase62(data[i]['id']));
-	       var readabletime  = time.toLocaleString('en-US', {year : "2-digit", month : "2-digit", day : "2-digit", hour : "2-digit", minute : "2-digit", second: "2-digit"});
-	       var str = [""
-	                 ,"<tr>"
-	                 ,"<td><a href='http://" + document.domain + ":" + location.port + "/dboutput/" + data[i]['id'] +"'>" + data[i]['id'] + "<\/a><\/td>"
-	                 ,"<td nowrap id='" + time.toString() + "' >"+ readabletime +"<\/td>"
-	                 ,"<td nowrap>"+ data[i]['seq']+"<\/td>"
-	                 ,"<\/tr>"
-	                 ].join("").replace(",","");
-	       
-	      $('#myTable').append(str);
-	   }
-	   
-	   
+    var tbody = document.querySelector('#myTable tbody');
+    for (var i = 0; i < data.length; i++) {
+      var ts = new Date(decodeBase62(data[i]['id']));
+      var readable = ts.toLocaleString('en-US', {
+        year: '2-digit', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+      });
+      var href = document.location.origin + '/tools/sspred/dboutput/' + data[i]['id'];
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td><a class="job-link" href="' + href + '">' + data[i]['id'] + '</a></td>' +
+        '<td class="time-cell">' + readable + '</td>' +
+        '<td class="seq-cell" title="' + data[i]['seq'] + '">' + data[i]['seq'] + '</td>';
+      tbody.appendChild(tr);
+    }
+  </script>
 
-	   function sortTable() {
-	    var table, rows, switching, i, x, y, shouldSwitch;
-	    table = document.getElementById("myTable");
-	    switching = true;
-	    /*Make a loop that will continue until
-	    no switching has been done:*/
-	    while (switching) {
-	      //start by saying: no switching is done:
-	      switching = false;
-	      rows = table.rows;
-	      /*Loop through all table rows (except the
-	      first, which contains table headers):*/
-	      for (i = 1; i < (rows.length - 1); i++) {
-	        //start by saying there should be no switching:
-	        shouldSwitch = false;
-	        /*Get the two elements you want to compare,
-	        one from current row and one from the next:*/
-	        x = rows[i].getElementsByTagName("TD")[0];
-	        y = rows[i + 1].getElementsByTagName("TD")[0];
-	        //check if the two rows should switch place:
-	        if (x.innerHTML < y.innerHTML) {
-	          //if so, mark as a switch and break the loop:
-
-	          shouldSwitch = true;
-	          break;
-	        }
-	      }
-	      if (shouldSwitch) {
-	        /*If a switch has been marked, make the switch
-	        and mark that a switch has been done:*/
-	        rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
-	        switching = true;
-	      }
-	    }
-	   }
-
-	   //sortTable();
-
-
-
-
-	</script>
 </body>
 </html>

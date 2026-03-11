@@ -2,7 +2,7 @@ import requests
 import time
 from guerrillamail import GuerrillaMailSession
 
-from services import ss
+from services import ss, batchtools
 
 
 def get(seq):
@@ -22,8 +22,7 @@ def get(seq):
 		'''
 		return SS
 	
-	session = GuerrillaMailSession()	#Creates GuerrillaMail session
-	email_address = session.get_session_state()['email_address'] #retrieves temp email address
+	email_address, _session = batchtools.get_temp_email()
 	
 	payload = {'email': email_address, 
 		'queryName': 'testprot', 

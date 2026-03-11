@@ -11,10 +11,11 @@
 <body>
 	<header class="header">
 		<div class="header-content">
-			<a href="/" class="logo">SSPred</a>
+			<a href="/tools/sspred" class="logo">SSPred</a>
 			<nav class="nav-links">
-				<a href="/">Submit</a>
-				<a href="/archive">Archive</a>
+				<a href="/tools/sspred">Submit</a>
+				<a href="/tools/sspred/archive">Archive</a>
+				<a href="/">Singh Lab</a>
 			</nav>
 		</div>
 	</header>
@@ -23,8 +24,8 @@
 		<aside class="sidebar">
 			<div class="sidebar-section">
 				<div class="sidebar-title">Navigation</div>
-				<a href="/" class="sidebar-link">Submit Sequence</a>
-				<a href="/archive" class="sidebar-link">View Archive</a>
+				<a href="/tools/sspred" class="sidebar-link">Submit Sequence</a>
+				<a href="/tools/sspred/archive" class="sidebar-link">View Archive</a>
 			</div>
 			<div class="sidebar-section">
 				<div class="sidebar-title">Service Status</div>
@@ -196,6 +197,15 @@
 								{{ form.chainId }}
 							</div>
 						</div>
+					</div>
+				</div>
+
+				<div class="form-section">
+					<div class="form-section-title">Email Notification (Optional)</div>
+					<div class="form-group">
+						{{ form.email.label }}
+						{{ form.email(placeholder="you@example.com", autocomplete="email") }}
+						<small style="color:var(--text-secondary);font-size:12px;">If provided, you'll receive an email when your job completes.</small>
 					</div>
 				</div>
 

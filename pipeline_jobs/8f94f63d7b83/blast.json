@@ -1,0 +1,119 @@
+{
+  "status": "ok",
+  "data": {
+    "database": "swissprot",
+    "hits": [
+      {
+        "accession": "W4VS99",
+        "title": "sp|W4VS99.1| RecName: Full=Neprilysin-1; Flags: Precursor [Trittame loki]",
+        "length": 722,
+        "e_value": 5.05219e-40,
+        "score": 404.0,
+        "identity_pct": 22.9,
+        "coverage_pct": 92.8,
+        "query_start": 30,
+        "query_end": 661
+      },
+      {
+        "accession": "Q18673",
+        "title": "sp|Q18673.3| RecName: Full=Neprilysin-1 [Caenorhabditis elegans]",
+        "length": 754,
+        "e_value": 2.23639e-37,
+        "score": 384.0,
+        "identity_pct": 24.7,
+        "coverage_pct": 90.9,
+        "query_start": 43,
+        "query_end": 661
+      },
+      {
+        "accession": "P42893",
+        "title": "sp|P42893.2| RecName: Full=Endothelin-converting enzyme 1; Short=ECE-1 [Rattus norvegicus]",
+        "length": 762,
+        "e_value": 3.97681e-37,
+        "score": 382.0,
+        "identity_pct": 23.9,
+        "coverage_pct": 95.9,
+        "query_start": 9,
+        "query_end": 661
+      },
+      {
+        "accession": "P97739",
+        "title": "sp|P97739.1| RecName: Full=Endothelin-converting enzyme 1; Short=ECE-1 [Cavia porcellus]",
+        "length": 754,
+        "e_value": 8.03452e-37,
+        "score": 380.0,
+        "identity_pct": 23.9,
+        "coverage_pct": 95.9,
+        "query_start": 9,
+        "query_end": 661
+      },
+      {
+        "accession": "P42892",
+        "title": "sp|P42892.2| RecName: Full=Endothelin-converting enzyme 1; Short=ECE-1 [Homo sapiens]",
+        "length": 770,
+        "e_value": 1.22783e-36,
+        "score": 378.0,
+        "identity_pct": 24.0,
+        "coverage_pct": 93.0,
+        "query_start": 29,
+        "query_end": 661
+      },
+      {
+        "accession": "Q4PZA2",
+        "title": "sp|Q4PZA2.1| RecName: Full=Endothelin-converting enzyme 1; Short=ECE-1 [Mus musculus]",
+        "length": 769,
+        "e_value": 2.01657e-36,
+        "score": 377.0,
+        "identity_pct": 23.9,
+        "coverage_pct": 95.9,
+        "query_start": 9,
+        "query_end": 661
+      },
+      {
+        "accession": "P42891",
+        "title": "sp|P42891.2| RecName: Full=Endothelin-converting enzyme 1; Short=ECE-1 [Bos taurus]",
+        "length": 754,
+        "e_value": 7.82714e-36,
+        "score": 372.0,
+        "identity_pct": 24.0,
+        "coverage_pct": 93.0,
+        "query_start": 29,
+        "query_end": 661
+      },
+      {
+        "accession": "Q9JMI0",
+        "title": "sp|Q9JMI0.2| RecName: Full=Endothelin-converting enzyme-like 1; AltName: Full=Damage-induced neuronal endopeptidase; Alt",
+        "length": 775,
+        "e_value": 1.36196e-35,
+        "score": 370.0,
+        "identity_pct": 23.5,
+        "coverage_pct": 94.1,
+        "query_start": 21,
+        "query_end": 661
+      },
+      {
+        "accession": "Q9JHL3",
+        "title": "sp|Q9JHL3.1| RecName: Full=Endothelin-converting enzyme-like 1; AltName: Full=Damage-induced neuronal endopeptidase; Alt",
+        "length": 775,
+        "e_value": 6.68937e-35,
+        "score": 365.0,
+        "identity_pct": 23.2,
+        "coverage_pct": 94.1,
+        "query_start": 21,
+        "query_end": 661
+      },
+      {
+        "accession": "P0DPD9",
+        "title": "sp|P0DPD9.1| RecName: Full=EEF1AKMT4-ECE2 readthrough transcript protein; Includes: RecName: Full=Methyltransferase-like",
+        "length": 881,
+        "e_value": 2.51614e-34,
+        "score": 361.0,
+        "identity_pct": 23.0,
+        "coverage_pct": 90.9,
+        "query_start": 43,
+        "query_end": 661
+      }
+    ]
+  },
+  "error": ""
+}

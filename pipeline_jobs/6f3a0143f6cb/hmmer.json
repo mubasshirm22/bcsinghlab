@@ -1,0 +1,7 @@
+{
+  "status": "error",
+  "data": {
+    "domains": []
+  },
+  "error": "HMMER submission returned HTTP 400: {\"detail\": \"Cannot parse request body\"}"
+}

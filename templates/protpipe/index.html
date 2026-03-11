@@ -1,0 +1,288 @@
+{% extends "lab/lab_base.html" %}
+{% block title %}ProtPipe — Protein Analysis Pipeline{% endblock %}
+
+{% block content %}
+
+<section class="page-hero">
+  <div class="lab-container">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <span style="background:rgba(255,255,255,.15);color:#fff;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:4px 12px;border-radius:999px;">Beta Tool</span>
+        </div>
+        <h1>ProtPipe</h1>
+        <p>Automated protein analysis pipeline — submit a sequence or accession and receive homology search, domain annotation, signal peptide and transmembrane topology, and a domain architecture figure.</p>
+      </div>
+      <a href="/tools/protpipe/archive" style="align-self:flex-start;padding:9px 18px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);border-radius:7px;color:#fff;font-size:0.85rem;font-weight:600;white-space:nowrap;text-decoration:none;">
+        Job Archive →
+      </a>
+    </div>
+  </div>
+</section>
+
+<section class="lab-section" style="padding:48px 0 80px;">
+  <div class="lab-container" style="max-width:860px;">
+
+    <!-- Validation message -->
+    <div id="val-msg" class="pipe-validation-msg" style="margin-bottom:20px;"></div>
+
+    {% if error %}
+    <div class="pipe-validation-msg error" style="margin-bottom:20px;">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="/tools/protpipe" id="pipe-form">
+
+      <!-- ── 1. Input type ─────────────────────────────────────── -->
+      <div class="pipe-form-section">
+        <div class="pipe-form-section-title">1 — Input Type</div>
+        <div class="pipe-input-type-row">
+          <label class="pipe-input-type-label">
+            <input type="radio" name="input_type" value="raw_fasta" id="rt-fasta" checked onchange="onInputTypeChange()">
+            FASTA / raw sequence
+          </label>
+          <label class="pipe-input-type-label">
+            <input type="radio" name="input_type" value="uniprot" id="rt-uniprot" onchange="onInputTypeChange()">
+            UniProt accession
+          </label>
+          <label class="pipe-input-type-label">
+            <input type="radio" name="input_type" value="ncbi" id="rt-ncbi" onchange="onInputTypeChange()">
+            NCBI protein accession
+          </label>
+        </div>
+        <p id="input-hint" style="font-size:0.8rem;color:var(--text-light);margin-top:10px;margin-bottom:0;">
+          Accepts raw amino acid string, single FASTA record, or a UniProt/NCBI accession (e.g. P12345 or NP_000005.2).
+        </p>
+      </div>
+
+      <!-- ── 2. Sequence input ──────────────────────────────────── -->
+      <div class="pipe-form-section">
+        <div class="pipe-form-section-title">2 — Sequence or Accession</div>
+        <textarea id="seq-input" name="sequence_input"
+          class="pipe-textarea" rows="7"
+          placeholder="Paste a FASTA sequence or raw amino acid string here…"
+          oninput="onSeqInput()"
+        ></textarea>
+        <div id="seq-stats" style="font-size:0.78rem;color:var(--text-light);margin-top:6px;height:18px;"></div>
+        <div class="pipe-textarea-actions">
+          <button type="button" class="pipe-btn-ghost" onclick="clearInput()">Clear</button>
+          <button type="button" class="pipe-btn-ghost" onclick="loadExample('uniprot','P04637')">Example: P04637 (TP53, UniProt)</button>
+          <button type="button" class="pipe-btn-ghost" onclick="loadExample('uniprot','P00533')">Example: P00533 (EGFR, UniProt)</button>
+          <button type="button" class="pipe-btn-ghost" onclick="loadExample('raw_fasta', exampleFasta)">Example: FASTA paste</button>
+        </div>
+        <!-- File upload row -->
+        <div class="pipe-file-upload-row" style="margin-top:12px;">
+          <label class="pipe-file-btn" for="fasta-file">Upload .fasta file</label>
+          <input type="file" id="fasta-file" accept=".fasta,.fa,.txt" style="display:none;" onchange="onFileUpload(this)">
+          <span id="file-name-display" style="font-size:0.8rem;color:var(--text-light);"></span>
+        </div>
+      </div>
+
+      <!-- ── 3. Analyses to run ─────────────────────────────────── -->
+      <div class="pipe-form-section">
+        <div class="pipe-form-section-title">3 — Analyses</div>
+        <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:16px;">
+          Basic sequence properties (length, MW, pI, GRAVY, instability) are always computed — no checkbox needed.
+        </p>
+        <div class="pipe-analysis-grid">
+
+          <label class="pipe-analysis-option">
+            <input type="checkbox" name="run_blast" checked>
+            <div>
+              <div class="opt-title">BLAST Homology Search</div>
+              <div class="opt-desc">blastp vs SwissProt via NCBI remote API. Returns top 10 hits with E-value, identity, and coverage.</div>
+              <span class="opt-status opt-status-live">Live</span>
+              <span style="font-size:0.72rem;color:var(--text-light);margin-left:6px;">~2–10 min</span>
+            </div>
+          </label>
+
+          <label class="pipe-analysis-option">
+            <input type="checkbox" name="run_hmmer" checked>
+            <div>
+              <div class="opt-title">Pfam Domain Annotation</div>
+              <div class="opt-desc">hmmscan vs Pfam via EBI HMMER API. Returns domain boundaries, accessions, and E-values.</div>
+              <span class="opt-status opt-status-beta">Endpoint verification pending</span>
+            </div>
+          </label>
+
+          <label class="pipe-analysis-option">
+            <input type="checkbox" name="run_phobius" checked>
+            <div>
+              <div class="opt-title">Signal Peptide &amp; TM Topology</div>
+              <div class="opt-desc">Phobius via EBI Job Dispatcher. Detects signal peptides and transmembrane helices in a single run.</div>
+              <span class="opt-status opt-status-beta">Endpoint verification pending</span>
+            </div>
+          </label>
+
+        </div>
+
+        <!-- Endpoint note -->
+        <div class="pipe-endpoint-note" style="margin-top:16px;">
+          <strong>Note on Beta modules</strong>
+          HMMER (Pfam) and Phobius are connected to EBI web services with medium-high confidence. If either endpoint returns an error, the results page will display a clear diagnostic message. BLAST is fully confirmed and always runs.
+        </div>
+      </div>
+
+      <!-- ── Submit ─────────────────────────────────────────────── -->
+      <div style="display:flex;justify-content:flex-end;gap:12px;">
+        <button type="button" class="btn-lab btn-lab-outline" onclick="resetForm()">Reset</button>
+        <button type="submit" id="submit-btn" class="btn-lab btn-lab-primary" style="background:var(--accent-teal);" onclick="return validateForm()">
+          Run Analysis →
+        </button>
+      </div>
+
+    </form>
+
+    <!-- ── What this tool does ─────────────────────────────────── -->
+    <div style="margin-top:48px;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:20px;">
+
+      <div class="pipe-form-section" style="margin-bottom:0;">
+        <div class="pipe-form-section-title">Accepted Inputs</div>
+        <ul style="font-size:0.88rem;color:var(--text-secondary);line-height:1.9;padding-left:0;list-style:none;">
+          <li>Raw amino acid string (single-letter codes)</li>
+          <li>Single FASTA record (with or without header)</li>
+          <li>UniProt accession (e.g. <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;">P04637</code>)</li>
+          <li>NCBI protein accession (e.g. <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;">NP_000535.3</code>)</li>
+          <li>Uploaded .fasta file</li>
+        </ul>
+      </div>
+
+      <div class="pipe-form-section" style="margin-bottom:0;">
+        <div class="pipe-form-section-title">What You Get</div>
+        <ul style="font-size:0.88rem;color:var(--text-secondary);line-height:1.9;padding-left:0;list-style:none;">
+          <li>Sequence properties (MW, pI, GRAVY, stability)</li>
+          <li>Top 10 BLAST hits vs SwissProt</li>
+          <li>Pfam domain hits with coordinates</li>
+          <li>Signal peptide detection and cleavage site</li>
+          <li>Transmembrane helix count and topology</li>
+          <li>SVG domain architecture figure</li>
+          <li>Downloadable JSON / TXT / SVG report</li>
+        </ul>
+      </div>
+
+      <div class="pipe-form-section" style="margin-bottom:0;">
+        <div class="pipe-form-section-title">Typical Runtime</div>
+        <ul style="font-size:0.88rem;color:var(--text-secondary);line-height:1.9;padding-left:0;list-style:none;">
+          <li>Sequence retrieval: &lt;5 seconds</li>
+          <li>Sequence properties: instant</li>
+          <li>BLAST: 2–10 minutes (SwissProt)</li>
+          <li>Pfam HMMER: ~30–60 seconds</li>
+          <li>Phobius: ~30 seconds</li>
+          <li>BLAST, HMMER, and Phobius run in parallel</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<script>
+const exampleFasta = `>sp|P04637|P53_HUMAN Cellular tumor antigen p53 OS=Homo sapiens
+MEEPQSDPSVEPPLSQETFSDLWKLLPENNVLSPLPSQAMDDLMLSPDDIEQWFTEDPGPDEAPRMPEAAPPVAPAPAAPTPAAPAPAPSWPLSSSVPSQKTYPQGLNGTVNLFGRNSFEVRVCACPGRDRRTEEENLHKTTGQVMKKVGPDSD`;
+
+const hints = {
+  raw_fasta: 'Accepts raw amino acid string (40–5000 residues) or a single FASTA record. Spaces and newlines are ignored.',
+  uniprot:   'Enter a UniProt accession, e.g. P04637 (TP53), Q9Y2H9, or A0A000ABC1.',
+  ncbi:      'Enter an NCBI protein accession, e.g. NP_000535.3 or XP_001234567.1.',
+};
+const placeholders = {
+  raw_fasta: 'Paste a FASTA sequence or raw amino acid string here…',
+  uniprot:   'Enter UniProt accession, e.g. P04637',
+  ncbi:      'Enter NCBI accession, e.g. NP_000535.3',
+};
+
+function onInputTypeChange() {
+  const val = document.querySelector('input[name="input_type"]:checked').value;
+  document.getElementById('seq-input').placeholder = placeholders[val] || '';
+  document.getElementById('input-hint').textContent = hints[val] || '';
+  document.getElementById('seq-stats').textContent = '';
+  clearValidation();
+}
+
+function onSeqInput() {
+  const val = document.querySelector('input[name="input_type"]:checked').value;
+  if (val !== 'raw_fasta') { clearValidation(); return; }
+  const raw = document.getElementById('seq-input').value;
+  const seq = raw.replace(/^>.*$/m,'').replace(/\s/g,'').toUpperCase();
+  const stats = document.getElementById('seq-stats');
+  if (seq.length === 0) { stats.textContent = ''; return; }
+  stats.textContent = seq.length + ' residues';
+  if (seq.length < 10) { showValidation('warning', 'Sequence is very short — minimum 10 residues.'); }
+  else if (seq.length > 5000) { showValidation('error', 'Sequence too long — maximum 5000 residues.'); }
+  else { clearValidation(); }
+}
+
+function loadExample(type, value) {
+  document.querySelector(`input[name="input_type"][value="${type}"]`).checked = true;
+  onInputTypeChange();
+  document.getElementById('seq-input').value = value;
+  onSeqInput();
+}
+
+function clearInput() {
+  document.getElementById('seq-input').value = '';
+  document.getElementById('seq-stats').textContent = '';
+  document.getElementById('file-name-display').textContent = '';
+  clearValidation();
+}
+
+function resetForm() {
+  document.getElementById('pipe-form').reset();
+  clearInput();
+  onInputTypeChange();
+}
+
+function onFileUpload(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const text = e.target.result;
+    document.querySelector('input[name="input_type"][value="raw_fasta"]').checked = true;
+    onInputTypeChange();
+    document.getElementById('seq-input').value = text;
+    onSeqInput();
+    document.getElementById('file-name-display').textContent = file.name;
+  };
+  reader.readAsText(file);
+}
+
+function showValidation(type, msg) {
+  const el = document.getElementById('val-msg');
+  el.className = 'pipe-validation-msg ' + type;
+  el.textContent = msg;
+}
+function clearValidation() {
+  const el = document.getElementById('val-msg');
+  el.className = 'pipe-validation-msg';
+  el.textContent = '';
+}
+
+function validateForm() {
+  const raw = document.getElementById('seq-input').value.trim();
+  if (!raw) {
+    showValidation('error', 'Please enter a sequence or accession before submitting.');
+    document.getElementById('seq-input').focus();
+    return false;
+  }
+  const type = document.querySelector('input[name="input_type"]:checked').value;
+  if (type === 'raw_fasta') {
+    const seq = raw.replace(/^>.*$/m,'').replace(/\s/g,'');
+    if (seq.length < 10) {
+      showValidation('error', 'Sequence is too short. Minimum 10 residues required.');
+      return false;
+    }
+    if (seq.length > 5000) {
+      showValidation('error', 'Sequence is too long. Maximum 5000 residues.');
+      return false;
+    }
+    // DNA/RNA heuristic
+    const nuc = (seq.match(/[ACGTU]/gi) || []).length;
+    if (nuc / seq.length > 0.8) {
+      showValidation('error', 'Input looks like a nucleotide sequence. Please enter a protein sequence.');
+      return false;
+    }
+  }
+  return true;
+}
+</script>
+{% endblock %}

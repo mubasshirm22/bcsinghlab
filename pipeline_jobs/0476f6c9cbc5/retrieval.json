@@ -1,0 +1,8 @@
+{
+  "status": "error",
+  "sequence": "",
+  "header": "",
+  "source": "",
+  "organism": "",
+  "error": "NCBI Entrez fetch failed for 'GAJC01020720.1': HTTP Error 400: Bad Request"
+}

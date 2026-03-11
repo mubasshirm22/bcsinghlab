@@ -14,10 +14,11 @@
 <body>
 	<header class="header">
 		<div class="header-content">
-			<a href="/" class="logo">SSPred</a>
+			<a href="/tools/sspred" class="logo">SSPred</a>
 			<nav class="nav-links">
-				<a href="/">Submit</a>
-				<a href="/archive">Archive</a>
+				<a href="/tools/sspred">Submit</a>
+				<a href="/tools/sspred/archive">Archive</a>
+				<a href="/">Singh Lab</a>
 			</nav>
 		</div>
 	</header>
@@ -30,6 +31,11 @@
 			</div>
 			<h1 class="page-title">Prediction Results</h1>
 			<p class="page-subtitle">Real-time progress tracking for your protein structure predictions</p>
+			<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 18px;margin-bottom:20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+				<span style="font-size:0.85rem;color:#1e40af;font-weight:600;">Job ID:</span>
+				<code id="job-id-display" style="font-family:monospace;font-size:0.95rem;background:#dbeafe;padding:3px 10px;border-radius:4px;color:#1e3a8a;letter-spacing:.04em;"></code>
+				<span style="font-size:0.82rem;color:#3b82f6;">Save this ID to look up your results in the <a href="/tools/sspred/archive" style="color:#2563eb;font-weight:600;">Archive</a>.</span>
+			</div>
 			
 			<div id="progress-container" class="progress-container"></div>
 			
@@ -421,9 +427,10 @@
 
 <script type="text/javascript">
 
-	document.getElementById("home").setAttribute('href', document.location.origin);
+	document.getElementById("home").setAttribute('href', document.location.origin + '/tools/sspred');
 	var a = {{ data | safe}};
 	var jobId = window.location.pathname.split('/').pop();
+	document.getElementById('job-id-display').textContent = jobId;
 	var serviceNames = ['PSI', 'JPred', 'Sable', 'SSPro', 'Yaspin', 'PHDpsi', 'PROFsec', 'Predator'];
 	
 	// Progress tracking

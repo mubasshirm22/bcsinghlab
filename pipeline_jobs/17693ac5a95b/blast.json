@@ -1,0 +1,119 @@
+{
+  "status": "ok",
+  "data": {
+    "database": "swissprot",
+    "hits": [
+      {
+        "accession": "P04637",
+        "title": "sp|P04637.4| RecName: Full=Cellular tumor antigen p53; AltName: Full=Antigen NY-CO-13; AltName: Full=Phosphoprotein p53;",
+        "length": 393,
+        "e_value": 0.0,
+        "score": 2101.0,
+        "identity_pct": 100.0,
+        "coverage_pct": 100.0,
+        "query_start": 1,
+        "query_end": 393
+      },
+      {
+        "accession": "P56423",
+        "title": "sp|P56423.2| RecName: Full=Cellular tumor antigen p53; AltName: Full=Tumor suppressor p53 [Macaca fascicularis] >sp|P564",
+        "length": 393,
+        "e_value": 0.0,
+        "score": 2020.0,
+        "identity_pct": 95.7,
+        "coverage_pct": 100.0,
+        "query_start": 1,
+        "query_end": 393
+      },
+      {
+        "accession": "P13481",
+        "title": "sp|P13481.1| RecName: Full=Cellular tumor antigen p53; AltName: Full=Tumor suppressor p53 [Chlorocebus aethiops]",
+        "length": 393,
+        "e_value": 0.0,
+        "score": 2015.0,
+        "identity_pct": 95.7,
+        "coverage_pct": 100.0,
+        "query_start": 1,
+        "query_end": 393
+      },
+      {
+        "accession": "Q9TTA1",
+        "title": "sp|Q9TTA1.1| RecName: Full=Cellular tumor antigen p53; AltName: Full=Tumor suppressor p53 [Tupaia belangeri]",
+        "length": 393,
+        "e_value": 0.0,
+        "score": 1824.0,
+        "identity_pct": 93.1,
+        "coverage_pct": 100.0,
+        "query_start": 1,
+        "query_end": 393
+      },
+      {
+        "accession": "O36006",
+        "title": "sp|O36006.1| RecName: Full=Cellular tumor antigen p53; AltName: Full=Tumor suppressor p53 [Marmota monax]",
+        "length": 391,
+        "e_value": 0.0,
+        "score": 1735.0,
+        "identity_pct": 86.0,
+        "coverage_pct": 100.0,
+        "query_start": 1,
+        "query_end": 393
+      },
+      {
+        "accession": "Q95330",
+        "title": "sp|Q95330.1| RecName: Full=Cellular tumor antigen p53; AltName: Full=Tumor suppressor p53 [Oryctolagus cuniculus]",
+        "length": 391,
+        "e_value": 0.0,
+        "score": 1680.0,
+        "identity_pct": 86.0,
+        "coverage_pct": 100.0,
+        "query_start": 1,
+        "query_end": 393
+      },
+      {
+        "accession": "Q8SPZ3",
+        "title": "sp|Q8SPZ3.1| RecName: Full=Cellular tumor antigen p53; AltName: Full=Tumor suppressor p53 [Delphinapterus leucas]",
+        "length": 387,
+        "e_value": 0.0,
+        "score": 1631.0,
+        "identity_pct": 84.8,
+        "coverage_pct": 100.0,
+        "query_start": 1,
+        "query_end": 393
+      },
+      {
+        "accession": "Q9WUR6",
+        "title": "sp|Q9WUR6.1| RecName: Full=Cellular tumor antigen p53; AltName: Full=Tumor suppressor p53 [Cavia porcellus]",
+        "length": 391,
+        "e_value": 0.0,
+        "score": 1594.0,
+        "identity_pct": 78.2,
+        "coverage_pct": 100.0,
+        "query_start": 1,
+        "query_end": 393
+      },
+      {
+        "accession": "Q00366",
+        "title": "sp|Q00366.1| RecName: Full=Cellular tumor antigen p53; AltName: Full=Tumor suppressor p53 [Mesocricetus auratus]",
+        "length": 396,
+        "e_value": 0.0,
+        "score": 1580.0,
+        "identity_pct": 78.3,
+        "coverage_pct": 100.0,
+        "query_start": 1,
+        "query_end": 393
+      },
+      {
+        "accession": "Q9TUB2",
+        "title": "sp|Q9TUB2.1| RecName: Full=Cellular tumor antigen p53; AltName: Full=Tumor suppressor p53 [Sus scrofa]",
+        "length": 386,
+        "e_value": 0.0,
+        "score": 1579.0,
+        "identity_pct": 81.5,
+        "coverage_pct": 100.0,
+        "query_start": 1,
+        "query_end": 393
+      }
+    ]
+  },
+  "error": ""
+}

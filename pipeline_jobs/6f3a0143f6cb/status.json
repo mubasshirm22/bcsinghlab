@@ -1,0 +1,13 @@
+{
+  "status": "complete",
+  "started": "2026-03-10T02:19:17.378873+00:00",
+  "modules": {
+    "retrieval": "complete",
+    "properties": "complete",
+    "blast": "error",
+    "hmmer": "error",
+    "phobius": "complete",
+    "figures": "complete"
+  },
+  "finished": "2026-03-10T02:19:37.065665+00:00"
+}

@@ -1,0 +1,11 @@
+{
+  "status": "ok",
+  "data": {
+    "has_signal_peptide": true,
+    "signal_peptide_end": 0,
+    "tm_count": 0,
+    "topology": "PREDICTION",
+    "tm_helices": []
+  },
+  "error": ""
+}

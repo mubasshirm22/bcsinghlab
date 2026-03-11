@@ -19,8 +19,7 @@ def get(seq):
 		SS.status = 2
 		return SS
 
-	session = GuerrillaMailSession()
-	email_address = session.get_session_state()['email_address']
+	email_address, session = batchtools.get_temp_email()
 
 	fasta_seq = ">query\n" + seq
 

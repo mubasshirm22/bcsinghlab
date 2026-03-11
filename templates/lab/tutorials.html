@@ -1,0 +1,89 @@
+{% extends "lab/lab_base.html" %}
+{% block title %}Tutorials{% endblock %}
+
+{% block content %}
+
+<section class="page-hero">
+  <div class="lab-container">
+    <h1>Tutorials &amp; Resources</h1>
+    <p>Guides and documentation for using lab tools and understanding our methods.</p>
+  </div>
+</section>
+
+<!-- SSPred Tutorials -->
+<section class="lab-section lab-section--alt">
+  <div class="lab-container">
+    <p class="section-label">SSPred</p>
+    <h2 class="section-title" style="margin-bottom:32px;">Getting Started with SSPred</h2>
+    <div class="grid-2">
+
+      <div class="tutorial-card">
+        <div class="tut-num">Tutorial 1</div>
+        <h3>Submitting Your First Sequence</h3>
+        <p>Learn how to paste a protein sequence into SSPred, choose your prediction servers, and interpret the progress page while your job runs.</p>
+        <div style="margin-top:16px;">
+          <span class="badge badge-soon">Coming Soon</span>
+        </div>
+      </div>
+
+      <div class="tutorial-card">
+        <div class="tut-num">Tutorial 2</div>
+        <h3>Understanding the Prediction Output</h3>
+        <p>How to read the consensus output, what H/E/C mean, how majority voting works, and how to interpret confidence scores from different servers.</p>
+        <div style="margin-top:16px;">
+          <span class="badge badge-soon">Coming Soon</span>
+        </div>
+      </div>
+
+      <div class="tutorial-card">
+        <div class="tut-num">Tutorial 3</div>
+        <h3>Using PDB Structure IDs</h3>
+        <p>Instead of pasting a sequence, you can provide a PDB ID and chain. SSPred will fetch the sequence automatically and run predictions against the known structure.</p>
+        <div style="margin-top:16px;">
+          <span class="badge badge-soon">Coming Soon</span>
+        </div>
+      </div>
+
+      <div class="tutorial-card">
+        <div class="tut-num">Tutorial 4</div>
+        <h3>Choosing Between Prediction Servers</h3>
+        <p>A guide to the 8 prediction servers available in SSPred — JPred4, PSIPred, SABLE, SSPro, YASPIN, PHDpsi, PROFsec, and Predator — and when to use each.</p>
+        <div style="margin-top:16px;">
+          <span class="badge badge-soon">Coming Soon</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- External Resources -->
+<section class="lab-section">
+  <div class="lab-container">
+    <p class="section-label">External Resources</p>
+    <h2 class="section-title" style="margin-bottom:32px;">Useful Links</h2>
+    <div class="grid-3">
+
+      <div class="lab-card">
+        <h3 style="margin-bottom:8px;font-size:1rem;">UniProt</h3>
+        <p style="font-size:0.88rem;color:var(--text-secondary);margin-bottom:16px;">Comprehensive protein sequence and functional information database.</p>
+        <a href="https://www.uniprot.org" target="_blank" rel="noopener" class="btn-lab btn-lab-outline btn-sm">Visit →</a>
+      </div>
+
+      <div class="lab-card">
+        <h3 style="margin-bottom:8px;font-size:1rem;">RCSB Protein Data Bank</h3>
+        <p style="font-size:0.88rem;color:var(--text-secondary);margin-bottom:16px;">Repository of 3D structural data of biological macromolecules.</p>
+        <a href="https://www.rcsb.org" target="_blank" rel="noopener" class="btn-lab btn-lab-outline btn-sm">Visit →</a>
+      </div>
+
+      <div class="lab-card">
+        <h3 style="margin-bottom:8px;font-size:1rem;">PSIPred Server</h3>
+        <p style="font-size:0.88rem;color:var(--text-secondary);margin-bottom:16px;">UCL bioinformatics group's direct access to PSIPRED and other structure tools.</p>
+        <a href="http://bioinf.cs.ucl.ac.uk/psipred/" target="_blank" rel="noopener" class="btn-lab btn-lab-outline btn-sm">Visit →</a>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+{% endblock %}

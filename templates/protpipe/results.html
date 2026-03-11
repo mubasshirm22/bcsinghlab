@@ -1,0 +1,541 @@
+{% extends "lab/lab_base.html" %}
+{% block title %}ProtPipe Results — {{ job_id }}{% endblock %}
+
+{% block content %}
+
+{% set is_complete = status_data.status == 'complete' %}
+{% set is_error    = status_data.status == 'error' %}
+{% set modules     = status_data.get('modules', {}) %}
+
+<!-- Page hero -->
+<section class="page-hero">
+  <div class="lab-container">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+      <div>
+        <h1 style="margin-bottom:8px;">Analysis Results</h1>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <span style="font-size:0.85rem;color:rgba(255,255,255,.7);">Job ID:</span>
+          <code id="job-id-hero" style="background:rgba(255,255,255,.15);color:#fff;padding:4px 12px;border-radius:5px;font-size:0.88rem;cursor:pointer;" onclick="copyJobId()" title="Click to copy">{{ job_id }}</code>
+          {% if is_complete %}
+          <span style="background:#dcfce7;color:#15803d;font-size:0.72rem;font-weight:700;padding:3px 10px;border-radius:999px;text-transform:uppercase;">Complete</span>
+          {% elif is_error %}
+          <span style="background:#fecaca;color:#991b1b;font-size:0.72rem;font-weight:700;padding:3px 10px;border-radius:999px;text-transform:uppercase;">Failed</span>
+          {% else %}
+          <span id="hero-status-badge" style="background:rgba(255,255,255,.15);color:#fff;font-size:0.72rem;font-weight:700;padding:3px 10px;border-radius:999px;text-transform:uppercase;">Running</span>
+          {% endif %}
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-self:flex-start;">
+        <a href="/tools/protpipe" style="padding:9px 18px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);border-radius:7px;color:#fff;font-size:0.85rem;font-weight:600;text-decoration:none;">New Analysis</a>
+        <a href="/tools/protpipe/archive" style="padding:9px 18px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);border-radius:7px;color:#fff;font-size:0.85rem;font-weight:600;text-decoration:none;">Archive</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="lab-section" style="padding:40px 0 80px;">
+  <div class="lab-container">
+
+    <!-- ── Status / progress panel (always shown until complete) ── -->
+    <div id="status-panel" class="pipe-result-card" {% if is_complete %}style="display:none;"{% endif %}>
+      <div class="pipe-result-card-title">Analysis Progress</div>
+
+      {% if is_error %}
+      <div class="pipe-error-diag">
+        <h4>Analysis failed</h4>
+        <p>{{ status_data.get('error', 'An unexpected error occurred.') }}</p>
+        {% if 'biopython' in (status_data.get('error','') | lower) %}
+        <p style="margin-top:8px;">This usually means a required dependency isn't installed. Run <code>pip install biopython svgwrite</code> on the server.</p>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="pipe-progress-steps" id="progress-steps">
+        {% set step_defs = [
+          ('retrieval',  'Sequence retrieval',              'Fetches sequence from UniProt / NCBI or parses your FASTA'),
+          ('properties', 'Sequence properties',             'MW, pI, GRAVY, stability — instant local calculation'),
+          ('blast',      'BLAST homology search',           'blastp vs SwissProt via NCBI — typically 2–10 min'),
+          ('hmmer',      'Pfam domain annotation (HMMER)',  'hmmscan via EBI HMMER API — typically ~1 min'),
+          ('phobius',    'Signal peptide & TM (Phobius)',   'Phobius via EBI Job Dispatcher — typically ~30 sec'),
+          ('figures',    'Domain architecture figure',      'SVG generated from HMMER + Phobius results'),
+        ] %}
+        {% for key, label, desc in step_defs %}
+        {% set s = modules.get(key, 'pending') %}
+        <div class="pipe-step step-{{s}}" id="step-{{key}}" data-module="{{key}}">
+          <span class="pipe-step-dot" id="dot-{{key}}" style="background:{% if s=='complete' %}#059669{% elif s=='running' %}#2563eb{% elif s=='error' %}#dc2626{% elif s=='skipped' %}#94a3b8{% else %}#cbd5e1{% endif %};"></span>
+          <div style="flex:1;">
+            <div class="pipe-step-name">{{ label }}</div>
+            <div style="font-size:0.75rem;color:var(--text-light);">{{ desc }}</div>
+          </div>
+          <span class="pipe-step-label" id="lbl-{{key}}" style="color:{% if s=='complete' %}#059669{% elif s=='running' %}#2563eb{% elif s=='error' %}#dc2626{% elif s=='skipped' %}#94a3b8{% else %}#94a3b8{% endif %};">
+            {% if s=='complete' %}Done{% elif s=='running' %}Running…{% elif s=='error' %}Error{% elif s=='skipped' %}Skipped{% else %}Pending{% endif %}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- ── Results section (only shown when complete) ── -->
+    {% if is_complete and summary %}
+    {% set ret   = summary.get('retrieval', {}) %}
+    {% set props = summary.get('properties', {}) %}
+    {% set blast_data  = summary.get('blast', {}) %}
+    {% set blast_hits  = blast_data.get('hits', []) %}
+    {% set hmmer_data  = summary.get('hmmer', {}) %}
+    {% set domains     = hmmer_data.get('domains', []) %}
+    {% set phob        = summary.get('phobius', {}) %}
+    {% set errs        = summary.get('module_errors', {}) %}
+
+    <!-- Download bar -->
+    <div class="pipe-download-bar">
+      <span>Download:</span>
+      <a class="pipe-dl-btn" href="/tools/protpipe/download/{{ job_id }}/json">JSON report</a>
+      <a class="pipe-dl-btn" href="/tools/protpipe/download/{{ job_id }}/txt">Text summary</a>
+      {% if summary.get('figure_ok') %}
+      <a class="pipe-dl-btn" href="/tools/protpipe/download/{{ job_id }}/svg">SVG figure</a>
+      {% endif %}
+      <button class="pipe-copy-btn" onclick="copyReport()" style="margin-left:auto;" id="copy-btn">Copy report</button>
+    </div>
+
+    <!-- Tabs -->
+    <div class="pipe-tabs-bar" id="tab-bar">
+      <button class="pipe-tab-btn active" onclick="showTab('overview', this)">
+        Overview
+      </button>
+      <button class="pipe-tab-btn" onclick="showTab('sequence', this)">
+        Sequence &amp; Properties
+        {% if props %}<span class="tab-check">✓</span>{% endif %}
+      </button>
+      <button class="pipe-tab-btn" id="tab-btn-homology" onclick="showTab('homology', this)">
+        Homology
+        {% if blast_hits %}<span class="tab-check">✓</span>{% elif errs.blast %}<span class="tab-warn">!</span>{% endif %}
+      </button>
+      <button class="pipe-tab-btn" onclick="showTab('domains', this)">
+        Domains
+        {% if domains %}<span class="tab-check">✓</span>{% elif errs.hmmer %}<span class="tab-warn">!</span>{% endif %}
+      </button>
+      <button class="pipe-tab-btn" onclick="showTab('topology', this)">
+        Topology
+        {% if phob %}<span class="tab-check">✓</span>{% elif errs.phobius %}<span class="tab-warn">!</span>{% endif %}
+      </button>
+      {% if summary.get('figure_ok') %}
+      <button class="pipe-tab-btn" id="tab-btn-figure" onclick="showTab('figure', this)">Figure</button>
+      {% endif %}
+    </div>
+
+    <!-- ────────────── TAB: Overview ────────────── -->
+    <div id="tab-overview" class="pipe-tab-panel active">
+
+      <!-- Quick summary stats -->
+      <div class="pipe-result-card">
+        <div class="pipe-result-card-title">Summary</div>
+        <div class="pipe-stat-grid">
+          {% if props.get('length') %}
+          <div class="pipe-stat"><div class="pipe-stat-label">Length</div><div class="pipe-stat-value">{{ props.length }} aa</div></div>
+          {% endif %}
+          {% if props.get('molecular_weight_da') %}
+          <div class="pipe-stat"><div class="pipe-stat-label">Mol. Weight</div><div class="pipe-stat-value">{{ "{:,.0f}".format(props.molecular_weight_da) }} Da</div></div>
+          {% endif %}
+          {% if props.get('isoelectric_point') is not none %}
+          <div class="pipe-stat"><div class="pipe-stat-label">pI</div><div class="pipe-stat-value">{{ props.isoelectric_point }}</div></div>
+          {% endif %}
+          {% if props.get('gravy') is not none %}
+          <div class="pipe-stat"><div class="pipe-stat-label">GRAVY</div><div class="pipe-stat-value">{{ props.gravy }}</div></div>
+          {% endif %}
+          {% if props.get('instability_index') is not none %}
+          <div class="pipe-stat"><div class="pipe-stat-label">Instability</div><div class="pipe-stat-value">{{ props.instability_index }} {% if props.get('is_stable') %}<span style="font-size:.7rem;color:#15803d;">(Stable)</span>{% elif props.get('is_stable') == False %}<span style="font-size:.7rem;color:#dc2626;">(Unstable)</span>{% endif %}</div></div>
+          {% endif %}
+          <div class="pipe-stat"><div class="pipe-stat-label">BLAST hits</div><div class="pipe-stat-value">{{ blast_hits | length }}</div></div>
+          <div class="pipe-stat"><div class="pipe-stat-label">Pfam domains</div><div class="pipe-stat-value">{{ domains | length }}</div></div>
+          <div class="pipe-stat"><div class="pipe-stat-label">TM helices</div><div class="pipe-stat-value">{{ phob.get('tm_count', '—') }}</div></div>
+          <div class="pipe-stat"><div class="pipe-stat-label">Signal peptide</div><div class="pipe-stat-value">{% if phob.get('has_signal_peptide') %}Yes{% elif phob.get('has_signal_peptide') == False %}No{% else %}—{% endif %}</div></div>
+        </div>
+      </div>
+
+      <!-- Domain figure thumbnail in overview -->
+      {% if summary.get('figure_ok') %}
+      <div class="pipe-result-card">
+        <div class="pipe-result-card-title">Domain Architecture</div>
+        <img src="/tools/protpipe/figure/{{ job_id }}" alt="Domain architecture" style="width:100%;max-width:800px;border-radius:6px;border:1px solid var(--border);">
+        <div style="margin-top:10px;display:flex;gap:8px;">
+          <a class="pipe-dl-btn" href="/tools/protpipe/download/{{ job_id }}/svg">Download SVG</a>
+          <button class="pipe-btn-ghost" onclick="showTab('figure', document.getElementById('tab-btn-figure'))">Full view →</button>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Top BLAST hit -->
+      {% if blast_hits %}
+      <div class="pipe-result-card">
+        <div class="pipe-result-card-title">Top BLAST Hit</div>
+        {% set h = blast_hits[0] %}
+        <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:0.9rem;">
+          <div><span style="color:var(--text-light);font-size:0.78rem;">Accession</span><br>
+            <code style="background:#f0fdf4;color:#166534;padding:2px 8px;border-radius:4px;">{{ h.accession }}</code>
+          </div>
+          <div><span style="color:var(--text-light);font-size:0.78rem;">E-value</span><br><strong>{{ "%.2e" | format(h.e_value) }}</strong></div>
+          <div><span style="color:var(--text-light);font-size:0.78rem;">Identity</span><br><strong>{{ h.identity_pct }}%</strong></div>
+          <div><span style="color:var(--text-light);font-size:0.78rem;">Coverage</span><br><strong>{{ h.coverage_pct }}%</strong></div>
+        </div>
+        <div style="margin-top:10px;font-size:0.85rem;color:var(--text-secondary);">{{ h.title }}</div>
+        <button class="pipe-btn-ghost" style="margin-top:10px;" onclick="showTab('homology', document.getElementById('tab-btn-homology'))">All BLAST hits →</button>
+      </div>
+      {% endif %}
+
+      <!-- Module errors summary -->
+      {% if errs %}
+      <div class="pipe-result-card" style="border-color:#fde68a;">
+        <div class="pipe-result-card-title" style="color:var(--warning);">Warnings</div>
+        {% for mod, msg in errs.items() %}
+        <div class="pipe-endpoint-note" style="margin-top:8px;">
+          <strong>{{ mod | title }}</strong>
+          {{ msg }}
+          {% if 'endpoint_unverified' in msg or 'endpoint' in msg.lower() %}
+          <br>To fix this: run the curl tests from the implementation plan and paste the responses.
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+    </div>
+
+    <!-- ────────────── TAB: Sequence & Properties ────────────── -->
+    <div id="tab-sequence" class="pipe-tab-panel">
+      {% if ret %}
+      <div class="pipe-result-card">
+        <div class="pipe-result-card-title">Sequence Information</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:16px;">
+          <div><span style="font-size:0.75rem;color:var(--text-light);font-weight:600;">Description</span><p style="font-size:0.9rem;margin-top:4px;">{{ ret.get('header','—') }}</p></div>
+          {% if ret.get('organism') %}<div><span style="font-size:0.75rem;color:var(--text-light);font-weight:600;">Organism</span><p style="font-size:0.9rem;margin-top:4px;">{{ ret.organism }}</p></div>{% endif %}
+          <div><span style="font-size:0.75rem;color:var(--text-light);font-weight:600;">Source</span><p style="font-size:0.9rem;margin-top:4px;">{{ ret.get('source','').upper() }}</p></div>
+          {% if ret.get('source') == 'uniprot' and ret.get('header') %}
+          <div><span style="font-size:0.75rem;color:var(--text-light);font-weight:600;">UniProt Link</span>
+            {% set acc = ret.header.split('|')[1] if '|' in ret.header else '' %}
+            {% if acc %}<p style="margin-top:4px;"><a href="https://www.uniprot.org/uniprot/{{ acc }}" target="_blank" rel="noopener">{{ acc }} ↗</a></p>{% endif %}
+          </div>
+          {% endif %}
+        </div>
+        <div style="font-size:0.75rem;color:var(--text-light);font-weight:600;margin-bottom:6px;">Sequence ({{ ret.get('sequence','') | length }} aa)</div>
+        <div class="pipe-seq-display">{{ ret.get('sequence','') }}</div>
+      </div>
+      {% endif %}
+
+      {% if props %}
+      <div class="pipe-result-card">
+        <div class="pipe-result-card-title">Physicochemical Properties</div>
+        <div class="pipe-stat-grid" style="margin-bottom:24px;">
+          {% for label, key in [('Length','length'),('MW (Da)','molecular_weight_da'),('pI','isoelectric_point'),('GRAVY','gravy'),('Aromaticity','aromaticity'),('Instability Index','instability_index'),('Helix fraction','helix_fraction'),('Sheet fraction','sheet_fraction'),('Turn fraction','turn_fraction')] %}
+          {% if props.get(key) is not none %}
+          <div class="pipe-stat">
+            <div class="pipe-stat-label">{{ label }}</div>
+            <div class="pipe-stat-value">{{ props[key] }}{% if key == 'molecular_weight_da' %} Da{% elif key in ('helix_fraction','sheet_fraction','turn_fraction','aromaticity') %}&thinsp;({{ (props[key] * 100) | round(1) }}%){% endif %}</div>
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+
+        <!-- Residue composition bars (top 12 by %) -->
+        {% set aa_pct = props.get('amino_acid_percent', {}) %}
+        {% if aa_pct %}
+        <div style="font-size:0.75rem;font-weight:600;color:var(--text-light);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">Residue Composition</div>
+        {% set sorted_aa = aa_pct.items() | sort(attribute=1, reverse=True) %}
+        {% for aa, pct in sorted_aa %}{% if loop.index <= 15 %}
+        <div class="comp-bar-row">
+          <span class="comp-bar-aa">{{ aa }}</span>
+          <div class="comp-bar-track"><div class="comp-bar-fill" style="width:{{ [pct * 4, 100] | min }}%;"></div></div>
+          <span class="comp-bar-pct">{{ pct }}%</span>
+        </div>
+        {% endif %}{% endfor %}
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- ────────────── TAB: Homology ────────────── -->
+    <div id="tab-homology" class="pipe-tab-panel">
+      {% if blast_hits %}
+      <div class="pipe-result-card">
+        <div class="pipe-result-card-title">BLAST Top Hits — {{ blast_data.get('database','').upper() }}</div>
+        <div style="overflow-x:auto;">
+        <table class="pipe-table">
+          <thead><tr>
+            <th>Accession</th><th>Description</th>
+            <th style="text-align:right;">E-value</th>
+            <th style="text-align:right;">Identity</th>
+            <th style="text-align:right;">Coverage</th>
+            <th style="text-align:right;">Score</th>
+          </tr></thead>
+          <tbody>
+          {% for h in blast_hits %}
+          <tr>
+            <td>
+              <a href="https://www.ncbi.nlm.nih.gov/protein/{{ h.accession }}" target="_blank" rel="noopener"
+                 style="font-family:monospace;font-size:0.82rem;background:#f0fdf4;color:#166534;padding:2px 7px;border-radius:4px;text-decoration:none;">
+                {{ h.accession }}</a>
+            </td>
+            <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.85rem;color:var(--text-secondary);" title="{{ h.title }}">{{ h.title }}</td>
+            <td style="text-align:right;font-family:monospace;font-size:0.85rem;">{{ "%.2e" | format(h.e_value) }}</td>
+            <td style="text-align:right;font-size:0.85rem;">{{ h.identity_pct }}%</td>
+            <td style="text-align:right;font-size:0.85rem;">{{ h.coverage_pct }}%</td>
+            <td style="text-align:right;font-size:0.85rem;">{{ h.score }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+      {% elif errs.get('blast') %}
+      <div class="pipe-result-card">
+        <div class="pipe-result-card-title">BLAST</div>
+        <div class="pipe-error-diag">
+          <h4>BLAST search failed</h4>
+          <p>{{ errs.blast }}</p>
+          <p style="margin-top:8px;">BLAST uses the confirmed NCBI remote API via Biopython. If this failed, the NCBI servers may have been temporarily unavailable. Try resubmitting.</p>
+        </div>
+      </div>
+      {% else %}
+      <div class="pipe-result-card"><p style="color:var(--text-light);font-size:0.9rem;">BLAST was not run for this job.</p></div>
+      {% endif %}
+    </div>
+
+    <!-- ────────────── TAB: Domains ────────────── -->
+    <div id="tab-domains" class="pipe-tab-panel">
+      {% if domains %}
+      <div class="pipe-result-card">
+        <div class="pipe-result-card-title">Pfam Domain Hits (HMMER)</div>
+        <div style="overflow-x:auto;">
+        <table class="pipe-table">
+          <thead><tr>
+            <th>Domain</th><th>Description</th>
+            <th style="text-align:right;">Start</th>
+            <th style="text-align:right;">End</th>
+            <th style="text-align:right;">Length</th>
+            <th style="text-align:right;">E-value</th>
+          </tr></thead>
+          <tbody>
+          {% for d in domains %}
+          <tr>
+            <td>
+              {% set pfam_id = d.name.split('.')[0] %}
+              <a href="https://www.ebi.ac.uk/interpro/entry/pfam/{{ pfam_id }}/" target="_blank" rel="noopener"
+                 style="font-family:monospace;font-size:0.82rem;background:#eff6ff;color:#1e3a8a;padding:2px 7px;border-radius:4px;text-decoration:none;">
+                {{ pfam_id }}</a>
+            </td>
+            <td style="font-size:0.85rem;color:var(--text-secondary);">{{ d.get('description','') }}</td>
+            <td style="text-align:right;font-family:monospace;font-size:0.85rem;">{{ d.seq_start }}</td>
+            <td style="text-align:right;font-family:monospace;font-size:0.85rem;">{{ d.seq_end }}</td>
+            <td style="text-align:right;font-size:0.85rem;color:var(--text-light);">{{ d.seq_end - d.seq_start + 1 }} aa</td>
+            <td style="text-align:right;font-family:monospace;font-size:0.85rem;">{{ "%.2e" | format(d.e_value) if d.e_value is not none else "—" }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+      {% elif errs.get('hmmer') %}
+      <div class="pipe-result-card">
+        <div class="pipe-result-card-title">Pfam Domain Annotation</div>
+        <div class="pipe-error-diag">
+          <h4>HMMER / Pfam search failed</h4>
+          <p>{{ errs.hmmer }}</p>
+        </div>
+        {% if 'endpoint_unverified' in errs.hmmer or '404' in errs.hmmer %}
+        <div class="pipe-endpoint-note" style="margin-top:12px;">
+          <strong>How to fix this</strong>
+          Run the EBI HMMER curl test from the implementation plan:<br>
+          <code>curl -s -X POST "https://www.ebi.ac.uk/Tools/hmmer/api/v1/search/hmmscan" -d "input=MKTIIALSYIFCLVFA&amp;database=pfam" -D -</code><br>
+          Paste the HTTP status code and first few lines of the response so the endpoint can be corrected.
+        </div>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="pipe-result-card"><p style="color:var(--text-light);font-size:0.9rem;">Pfam domain annotation was not run for this job.</p></div>
+      {% endif %}
+    </div>
+
+    <!-- ────────────── TAB: Topology ────────────── -->
+    <div id="tab-topology" class="pipe-tab-panel">
+      {% if phob %}
+      <div class="pipe-result-card">
+        <div class="pipe-result-card-title">Signal Peptide &amp; Transmembrane Topology (Phobius)</div>
+        <div class="pipe-phobius-grid">
+          <div class="pipe-phob-card" style="background:#f0fdf4;border-color:#bbf7d0;">
+            <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:#166534;margin-bottom:6px;">Signal Peptide</div>
+            <div style="font-size:1.15rem;font-weight:700;color:#15803d;">
+              {% if phob.get('has_signal_peptide') %}Yes{% else %}Not detected{% endif %}
+            </div>
+            {% if phob.get('has_signal_peptide') and phob.get('signal_peptide_end') %}
+            <div style="font-size:0.82rem;color:#166534;margin-top:4px;">Cleavage after residue {{ phob.signal_peptide_end }}</div>
+            {% endif %}
+          </div>
+          <div class="pipe-phob-card" style="background:#fef2f2;border-color:#fecaca;">
+            <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:#991b1b;margin-bottom:6px;">TM Helices</div>
+            <div style="font-size:1.15rem;font-weight:700;color:#dc2626;">{{ phob.get('tm_count', 0) }}</div>
+          </div>
+          {% if phob.get('topology') %}
+          <div class="pipe-phob-card" style="background:var(--bg);border-color:var(--border);flex:1;min-width:200px;">
+            <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:6px;">Topology String</div>
+            <div style="font-family:monospace;font-size:0.92rem;color:var(--text);">{{ phob.topology }}</div>
+          </div>
+          {% endif %}
+        </div>
+
+        {% if phob.get('tm_helices') %}
+        <div style="margin-top:20px;">
+          <div style="font-size:0.75rem;font-weight:600;color:var(--text-light);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">TM Helix Coordinates</div>
+          <table class="pipe-table">
+            <thead><tr><th>#</th><th style="text-align:right;">Start</th><th style="text-align:right;">End</th><th style="text-align:right;">Length</th></tr></thead>
+            <tbody>
+            {% for h in phob.tm_helices %}
+            <tr>
+              <td>{{ loop.index }}</td>
+              <td style="text-align:right;font-family:monospace;">{{ h.start }}</td>
+              <td style="text-align:right;font-family:monospace;">{{ h.end }}</td>
+              <td style="text-align:right;font-size:0.85rem;color:var(--text-light);">{{ (h.end - h.start + 1) }} aa</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+      </div>
+      {% elif errs.get('phobius') %}
+      <div class="pipe-result-card">
+        <div class="pipe-result-card-title">Phobius</div>
+        <div class="pipe-error-diag">
+          <h4>Phobius prediction failed</h4>
+          <p>{{ errs.phobius }}</p>
+        </div>
+        {% if 'endpoint_unverified' in errs.phobius or '404' in errs.phobius or 'submission failed' in errs.phobius %}
+        <div class="pipe-endpoint-note" style="margin-top:12px;">
+          <strong>How to fix this</strong>
+          Run the EBI Phobius curl test:<br>
+          <code>curl -s -X POST "https://www.ebi.ac.uk/Tools/services/rest/phobius/run" -d "email=test@test.com&amp;sequence=MKTIIALSYIFCLVFA&amp;stype=protein" -D -</code><br>
+          Paste the HTTP status code and response body.
+        </div>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="pipe-result-card"><p style="color:var(--text-light);font-size:0.9rem;">Phobius topology prediction was not run for this job.</p></div>
+      {% endif %}
+    </div>
+
+    <!-- ────────────── TAB: Figure ────────────── -->
+    {% if summary.get('figure_ok') %}
+    <div id="tab-figure" class="pipe-tab-panel">
+      <div class="pipe-result-card">
+        <div class="pipe-result-card-title">Domain Architecture Figure</div>
+        <img src="/tools/protpipe/figure/{{ job_id }}" alt="Domain architecture" style="width:100%;max-width:900px;border-radius:6px;border:1px solid var(--border);">
+        <div style="margin-top:14px;">
+          <a class="pipe-dl-btn" href="/tools/protpipe/download/{{ job_id }}/svg">Download SVG</a>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Hidden copyable report text -->
+    <textarea id="copy-report-text" style="position:absolute;left:-9999px;top:0;" readonly>{{ summary | tojson(indent=2) }}</textarea>
+
+    {% elif is_complete and not summary %}
+    <div class="pipe-error-diag"><p>Results could not be loaded. The job may have been cleaned up.</p></div>
+    {% endif %}
+
+  </div>
+</section>
+
+<script>
+const jobId = {{ job_id | tojson }};
+const finalStatus = {{ status_data.status | tojson }};
+
+// ── Save to localStorage archive ──────────────────────────────
+if (finalStatus === 'complete' || finalStatus === 'running') {
+  try {
+    const archive = JSON.parse(localStorage.getItem('protpipe_archive') || '[]');
+    const existing = archive.findIndex(j => j.job_id === jobId);
+    const archiveLabel = {{ (summary.get('retrieval', {}).get('header', '') if summary else '') | tojson }};
+    const entry = { job_id: jobId, ts: Date.now(), status: finalStatus, input: archiveLabel || jobId };
+    if (existing >= 0) archive[existing] = entry;
+    else archive.unshift(entry);
+    if (archive.length > 50) archive.splice(50);
+    localStorage.setItem('protpipe_archive', JSON.stringify(archive));
+  } catch(e) {}
+}
+
+// ── Polling (while running) ───────────────────────────────────
+const dotColors  = { complete:'#059669', running:'#2563eb', error:'#dc2626', skipped:'#94a3b8', pending:'#cbd5e1' };
+const textColors = { complete:'#059669', running:'#2563eb', error:'#dc2626', skipped:'#94a3b8', pending:'#94a3b8' };
+const textLabels = { complete:'Done', running:'Running…', error:'Error', skipped:'Skipped', pending:'Pending' };
+const stepClasses = { complete:'step-complete', running:'step-running', error:'step-error', skipped:'step-skipped', pending:'' };
+
+if (finalStatus !== 'complete' && finalStatus !== 'error') { poll(); }
+
+function poll() {
+  fetch('/tools/protpipe/status/' + jobId)
+    .then(r => r.json())
+    .then(data => {
+      updateSteps(data.modules || {});
+      if (data.status === 'complete') {
+        const badge = document.getElementById('hero-status-badge');
+        if (badge) { badge.style.background='#dcfce7'; badge.style.color='#15803d'; badge.textContent='Complete'; }
+        setTimeout(() => { window.location.reload(); }, 1500);
+        return;
+      }
+      if (data.status === 'error') {
+        const badge = document.getElementById('hero-status-badge');
+        if (badge) { badge.style.background='#fecaca'; badge.style.color='#991b1b'; badge.textContent='Failed'; }
+        window.location.reload(); return;
+      }
+      setTimeout(poll, 5000);
+    })
+    .catch(() => { setTimeout(poll, 8000); });
+}
+
+function updateSteps(modules) {
+  for (const [key, status] of Object.entries(modules)) {
+    const dot  = document.getElementById('dot-' + key);
+    const lbl  = document.getElementById('lbl-' + key);
+    const row  = document.getElementById('step-' + key);
+    if (dot) dot.style.background = dotColors[status] || '#cbd5e1';
+    if (lbl) { lbl.style.color = textColors[status] || '#94a3b8'; lbl.textContent = textLabels[status] || status; }
+    if (row) {
+      row.className = 'pipe-step ' + (stepClasses[status] || '');
+    }
+  }
+}
+
+// ── Tabs ─────────────────────────────────────────────────────
+function showTab(id, btn) {
+  document.querySelectorAll('.pipe-tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.pipe-tab-btn').forEach(b => b.classList.remove('active'));
+  const panel = document.getElementById('tab-' + id);
+  if (panel) panel.classList.add('active');
+  if (btn) btn.classList.add('active');
+}
+
+// ── Copy job ID ───────────────────────────────────────────────
+function copyJobId() {
+  navigator.clipboard.writeText(jobId).then(() => {
+    const el = document.getElementById('job-id-hero');
+    const orig = el.textContent;
+    el.textContent = 'Copied!';
+    el.style.opacity = '.65';
+    setTimeout(() => { el.textContent = orig; el.style.opacity = ''; }, 2000);
+  }).catch(() => {});
+}
+
+// ── Copy report ───────────────────────────────────────────────
+function copyReport() {
+  const ta = document.getElementById('copy-report-text');
+  if (!ta) return;
+  navigator.clipboard.writeText(ta.value).then(() => {
+    const btn = document.getElementById('copy-btn');
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  }).catch(() => {
+    ta.select(); document.execCommand('copy');
+  });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,9 @@
+{
+  "status": "error",
+  "started": "2026-03-10T18:56:28.647930+00:00",
+  "modules": {
+    "retrieval": "error"
+  },
+  "finished": "2026-03-10T18:56:29.230552+00:00",
+  "error": "NCBI Entrez fetch failed for 'GAJC01020720.1': HTTP Error 400: Bad Request"
+}

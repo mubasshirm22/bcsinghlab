@@ -1,10 +1,103 @@
 import time
 import math
 import requests
+import secrets as _secrets
 from guerrillamail import GuerrillaMailSession
 import html
 from bs4 import BeautifulSoup
 #Contains functions related to output that are meant to be applied to multiple scripts
+
+# ---------------------------------------------------------------------------
+# Temporary email abstraction — tries GuerrillaMail first, falls back to
+# mail.tm (free REST API, no account needed) if GuerrillaMail is down.
+# ---------------------------------------------------------------------------
+
+class _MailTmEmail:
+	"""Minimal adapter so emailRequestWait can call .body on this object."""
+	def __init__(self, body):
+		self.body = body
+
+class MailTmSession:
+	"""
+	Adapter that mimics the subset of GuerrillaMailSession used by the
+	service files: session.get_email_list() and session.get_email(guid).body
+	"""
+	_MAILTM_BASE = 'https://api.mail.tm'
+
+	def __init__(self, email_address, token):
+		self.email_address = email_address
+		self._token = token
+		self._headers = {'Authorization': 'Bearer ' + token}
+
+	def get_email_list(self):
+		"""Returns list of objects with a .guid attribute (the message id)."""
+		try:
+			r = requests.get(self._MAILTM_BASE + '/messages', headers=self._headers, timeout=10)
+			msgs = r.json().get('hydra:member', [])
+			result = []
+			for m in msgs:
+				obj = type('_Msg', (), {'guid': m['id']})()
+				result.append(obj)
+			return result
+		except Exception:
+			return []
+
+	def get_email(self, guid):
+		"""Returns an object with a .body attribute (plain text body)."""
+		try:
+			r = requests.get(self._MAILTM_BASE + '/messages/' + guid, headers=self._headers, timeout=10)
+			data = r.json()
+			body = data.get('text', '') or data.get('html', '') or ''
+			return _MailTmEmail(body)
+		except Exception:
+			return _MailTmEmail('')
+
+
+def get_temp_email():
+	"""
+	Returns (email_address, session) using GuerrillaMail if available,
+	mail.tm as fallback.  'session' is compatible with emailRequestWait.
+	On total failure returns a static address with a None session
+	(services that only need the address still work; inbox-reading services
+	will time out gracefully).
+	"""
+	# Try GuerrillaMail first
+	try:
+		session = GuerrillaMailSession()
+		email_address = session.get_session_state()['email_address']
+		print("TempMail: using GuerrillaMail:", email_address)
+		return email_address, session
+	except Exception as e:
+		print("TempMail: GuerrillaMail unavailable (" + str(e) + "), trying mail.tm ...")
+
+	# Try mail.tm
+	try:
+		MAILTM = 'https://api.mail.tm'
+		r = requests.get(MAILTM + '/domains', timeout=10)
+		domain = r.json()['hydra:member'][0]['domain']
+		username = 'sspred' + _secrets.token_hex(6)
+		password = _secrets.token_hex(12)
+		address = username + '@' + domain
+		r2 = requests.post(MAILTM + '/accounts',
+		                   json={'address': address, 'password': password},
+		                   timeout=10)
+		if r2.status_code in (200, 201):
+			r3 = requests.post(MAILTM + '/token',
+			                   json={'address': address, 'password': password},
+			                   timeout=10)
+			token = r3.json()['token']
+			session = MailTmSession(address, token)
+			print("TempMail: using mail.tm:", address)
+			return address, session
+	except Exception as e:
+		print("TempMail: mail.tm unavailable (" + str(e) + "), using static fallback.")
+
+	# Static fallback — services that only need to submit (PSI, JPred, Yaspin, etc.)
+	# will still work fine. Inbox-reading services (Sable, SSPro, PSS) will time
+	# out and report a clear failure message rather than crashing.
+	static_addr = 'sspred.noreply@example.com'
+	print("TempMail: using static fallback address:", static_addr)
+	return static_addr, None
 
 #Creates a random string to use for a prediction name. Can take a time and create a string from that
 def randBase62(givenTime = None):

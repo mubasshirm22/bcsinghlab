@@ -1,0 +1,5 @@
+{
+  "status": "error",
+  "data": {},
+  "error": "BLAST submission failed: qblast() got an unexpected keyword argument 'email'"
+}
