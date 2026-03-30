@@ -1,3 +1,5 @@
 /services/token.pickle
 /services/credentials.json
 *.pyc
+pipeline_jobs/
+debug/

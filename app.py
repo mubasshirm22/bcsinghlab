@@ -60,80 +60,97 @@ def dbupdate(rowid, rowcol, rowval):
 	conn.commit()
 	cursor.close()
 
-def check_service_health():
-	"""Quick health check for all services"""
-	service_urls = {
-		"JPred": "http://www.compbio.dundee.ac.uk/jpred4/",
-		"PSI": "http://bioinf.cs.ucl.ac.uk/psipred/",
-		"Sable": "http://sable.cchmc.org/",
-		"SSPro": "http://scratch.proteomics.ics.uci.edu/",
-		"Yaspin": "http://www.ibi.vu.nl/programs/yaspinwww/",
-		"PHDpsi": "https://predictprotein.org/",
-		"PROFsec": "https://predictprotein.org/",
-		"Predator": "http://npsa-pbil.ibcp.fr/",
-		"NetSurf": "https://services.healthtech.dtu.dk/"
-	}
-
-	status = {}
-	for service_name, url in service_urls.items():
-		try:
-			response = requests.get(url, timeout=5)
-			if response.status_code == 200:
-				status[service_name] = "UP"
-			else:
-				status[service_name] = "DOWN"
-		except:
-			status[service_name] = "DOWN"
-
-	# Check STRIDE (PDB service) - uses POST endpoint
+def _ensure_db_columns():
+	"""Add any missing columns to seqtable. Safe to call on every startup."""
+	new_columns = [
+		("netsurfpred", "TEXT"),
+		("netsurfconf", "TEXT"),
+		("netsurfstat", "INTEGER"),
+		("netsurfmsg",  "TEXT"),
+	]
 	try:
-		stride_url = "https://webclu.bio.wzw.tum.de/cgi-bin/stride/stridecgi.py"
-		# Try a simple POST with minimal data to check if server is reachable
-		test_data = {
-			"pdbid": "TEST",
-			"paste_field": "",
-			"action": "compute",
-			"contact_threshold": "6",
-			"sensitive": "true"
-		}
-		response = requests.post(stride_url, data=test_data, timeout=5)
-		# Server should respond (even if with an error about invalid PDB ID)
-		if response.status_code == 200:
-			status["STRIDE"] = "UP"
-		else:
-			status["STRIDE"] = "DOWN"
-	except:
+		conn = psycopg2.connect(DATABASE_URL)
+		cursor = conn.cursor()
+		for col, col_type in new_columns:
+			cursor.execute(
+				f"ALTER TABLE seqtable ADD COLUMN IF NOT EXISTS {col} {col_type}"
+			)
+		conn.commit()
+		cursor.close()
+		conn.close()
+	except Exception as e:
+		print(f"[startup] DB migration warning: {e}")
+
+
+def check_service_health():
+	"""
+	Check reachability of each service by hitting its actual submission endpoint.
+	PHDpsi and PROFsec are permanently marked DOWN — EBI removed both tools.
+	"""
+	status = {}
+
+	# Services checked via GET on their real submission/query page
+	get_checks = {
+		"JPred":    "http://www.compbio.dundee.ac.uk/jpred4/",
+		"PSI":      "http://bioinf.cs.ucl.ac.uk/psipred/",
+		"Sable":    "http://sable.cchmc.org/",
+		"SSPro":    "http://scratch.proteomics.ics.uci.edu/",
+		"Yaspin":   "http://www.ibi.vu.nl/programs/yaspinwww/",
+		"Predator": "https://npsa-prabi.ibcp.fr/cgi-bin/secpred_preda.pl",
+		"NetSurf":  "https://services.healthtech.dtu.dk/cgi-bin/webface2.cgi",
+	}
+	for name, url in get_checks.items():
+		try:
+			r = requests.get(url, timeout=5, allow_redirects=True)
+			status[name] = "UP" if r.status_code in (200, 301, 302, 405) else "DOWN"
+		except Exception:
+			status[name] = "DOWN"
+
+	# PHDpsi and PROFsec: permanently removed from EBI Job Dispatcher
+	status["PHDpsi"]  = "DOWN"
+	status["PROFsec"] = "DOWN"
+
+	# STRIDE — POST endpoint
+	try:
+		r = requests.post(
+			"https://webclu.bio.wzw.tum.de/cgi-bin/stride/stridecgi.py",
+			data={"pdbid": "TEST", "paste_field": "", "action": "compute",
+			      "contact_threshold": "6", "sensitive": "true"},
+			timeout=5,
+		)
+		status["STRIDE"] = "UP" if r.status_code == 200 else "DOWN"
+	except Exception:
 		status["STRIDE"] = "DOWN"
 
 	return status
 
 #Dictionary containing sites and their classes
 siteDict = {
-	"JPred": jpred,
-	"PSI": psi,
-	#"PSS": pss,
-	#"RaptorX": raptorx,
-	"Sable": sable,
-	"Yaspin": yaspin,
-	"SSPro": sspro,
-	"PHDpsi": phdpsi,
-	"PROFsec": profsec,
+	"JPred":    jpred,
+	"PSI":      psi,
+	#"PSS":    pss,       # disabled
+	#"RaptorX": raptorx, # disabled
+	"Sable":    sable,
+	"Yaspin":   yaspin,
+	"SSPro":    sspro,
+	#"PHDpsi":  phdpsi,  # permanently removed from EBI Job Dispatcher
+	#"PROFsec": profsec, # permanently removed from EBI Job Dispatcher
 	"Predator": predator,
-	"NetSurf": netsurf
+	"NetSurf":  netsurf,
 }
 
 siteLimit = {
-	"JPred": 20,
-	"PSI": 20,
-	#"PSS": 3,
+	"JPred":    20,
+	"PSI":      20,
+	#"PSS":    3,
 	#"RaptorX": 20,
-	"Sable": 20,
-	"Yaspin": 3,
-	"SSPro": 5,
-	"PHDpsi": 5,
-	"PROFsec": 5,
+	"Sable":    20,
+	"Yaspin":   3,
+	"SSPro":    5,
+	#"PHDpsi":  5,
+	#"PROFsec": 5,
 	"Predator": 5,
-	"NetSurf": 5
+	"NetSurf":  5,
 }
 
 
@@ -151,6 +168,7 @@ siteurl = os.environ.get('SITE_URL')
 if siteurl is None :
 	siteurl = ""
 
+_ensure_db_columns()
 
 # ---------------------------------------------------------------------------
 # Lab site routes
