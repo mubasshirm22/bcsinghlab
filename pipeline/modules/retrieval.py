@@ -137,26 +137,219 @@ def _fetch_ncbi(accession: str) -> dict:
     Entrez.email = ENTREZ_EMAIL
     accession = accession.strip()
 
+    # ------------------------------------------------------------------
+    # Accession type detection and resolution
+    #
+    # Protein prefixes  → fetch directly (NP_, XP_, WP_, YP_, AP_, ZP_)
+    # mRNA/RNA          → nuccore→protein elink (NM_, XM_, NR_, XR_)
+    # Genomic/WGS       → nuccore→protein elink (NG_, NC_, NW_, NZ_, NT_,
+    #                      or 4-6 letter + 8+ digit WGS contigs like GAJC…)
+    # Gene ID           → gene→protein elink (4–10 digit numeric)
+    # Unknown           → try nuccore elink first, then direct protein fetch
+    # ------------------------------------------------------------------
+    resolved_from = None
+    resolved_how  = None
+    resolved      = None
+    acc_to_fetch  = accession
+
+    protein_pattern = re.compile(r'^(NP_|XP_|WP_|YP_|AP_|ZP_)', re.IGNORECASE)
+    mrna_pattern    = re.compile(r'^(NM_|XM_|NR_|XR_)', re.IGNORECASE)
+    genomic_pattern = re.compile(r'^(NG_|NC_|NW_|NZ_|NT_)', re.IGNORECASE)
+    wgs_pattern     = re.compile(r'^[A-Z]{4,6}\d{6,}', re.IGNORECASE)
+    gene_id_pattern = re.compile(r'^\d{4,10}$')
+
+    if protein_pattern.match(accession):
+        # Known protein accession — fetch directly
+        pass
+
+    elif mrna_pattern.match(accession) or genomic_pattern.match(accession) or wgs_pattern.match(accession):
+        # mRNA, genomic reference, or WGS contig — resolve via nuccore→protein elink
+        resolved = _resolve_nucleotide_to_protein(accession)
+        if resolved:
+            resolved_from = accession
+            acc_to_fetch  = resolved["protein_acc"]
+            resolved_how  = resolved["how"]
+            print(f"[retrieval] resolved nucleotide {accession} → protein {acc_to_fetch} ({resolved_how})")
+        else:
+            return _err(
+                f"Could not resolve '{accession}' to a protein record via NCBI elink. "
+                "If this is a WGS contig it may lack annotated CDS protein records. "
+                "Supported: protein (NP_, XP_, WP_), mRNA (NM_, XM_), "
+                "WGS contigs (e.g. GAJC01020720.1), gene IDs (numeric), or paste FASTA directly."
+            )
+
+    elif gene_id_pattern.match(accession):
+        # Bare NCBI gene ID
+        resolved = _resolve_gene_to_protein(accession)
+        if resolved:
+            resolved_from = accession
+            acc_to_fetch  = resolved["protein_acc"]
+            resolved_how  = resolved["how"]
+            print(f"[retrieval] resolved gene ID {accession} → protein {acc_to_fetch}")
+        else:
+            return _err(
+                f"No linked protein record found for gene ID '{accession}'. "
+                "Please submit a protein accession (NP_/XP_) or paste your FASTA directly."
+            )
+
+    else:
+        # Unrecognized format — try nuccore elink first, fall through to direct protein fetch
+        resolved = _resolve_nucleotide_to_protein(accession)
+        if resolved:
+            resolved_from = accession
+            acc_to_fetch  = resolved["protein_acc"]
+            resolved_how  = resolved["how"]
+            print(f"[retrieval] resolved '{accession}' via nucleotide elink → {acc_to_fetch}")
+        else:
+            # Last resort: attempt direct protein fetch (handles unusual protein acc formats)
+            print(f"[retrieval] unrecognized accession format '{accession}' — attempting direct protein fetch")
+
     try:
-        handle = Entrez.efetch(db="protein", id=accession, rettype="fasta", retmode="text")
+        handle = Entrez.efetch(db="protein", id=acc_to_fetch, rettype="fasta", retmode="text")
         record = SeqIO.read(handle, "fasta")
         handle.close()
     except Exception as e:
-        return _err(f"NCBI Entrez fetch failed for '{accession}': {e}")
+        return _err(f"NCBI Entrez fetch failed for '{acc_to_fetch}': {e}")
 
     sequence = str(record.seq).upper()
     parsed = fasta_utils.parse_input(sequence)
     if not parsed["ok"]:
         return _err(f"Sequence validation failed: {parsed['error']}")
 
-    return {
+    # Try to extract organism from Entrez FASTA header
+    organism = ""
+    desc = record.description or ""
+    org_m = re.search(r'\[([^\[\]]+)\]\s*$', desc)
+    if org_m:
+        organism = org_m.group(1).strip()
+
+    result = {
         "status": "ok",
         "sequence": parsed["sequence"],
         "header": record.description,
         "source": "ncbi",
-        "organism": "",   # Entrez FASTA header doesn't always include organism
+        "organism": organism,
         "error": "",
     }
+    if resolved_from:
+        result["resolved_from"]      = resolved_from
+        result["resolved_acc"]       = acc_to_fetch
+        result["resolved_how"]       = resolved_how
+        result["resolved_proteins"]  = (resolved or {}).get("all_candidates", [])
+    return result
+
+
+def _resolve_nucleotide_to_protein(nuc_acc: str) -> dict | None:
+    """
+    Given any nucleotide/mRNA/WGS accession, find linked protein records via
+    NCBI nuccore→protein elink and return the best one (longest sequence).
+
+    Works for NM_, XM_, NR_, XR_, NG_, NC_, NW_, NZ_, NT_, and WGS contigs
+    like GAJC01020720.1.
+
+    Returns {"protein_acc": str, "how": str, "all_candidates": list} or None.
+    """
+    mrna_acc = nuc_acc  # kept for compatibility with body below
+    try:
+        # Use elink to find nucleotide → protein links
+        handle = Entrez.elink(dbfrom="nucleotide", db="protein", id=mrna_acc, linkname="nuccore_protein")
+        records = Entrez.read(handle)
+        handle.close()
+
+        if not records or not records[0].get("LinkSetDb"):
+            return None
+
+        link_ids = [link["Id"] for link in records[0]["LinkSetDb"][0]["Link"]]
+        if not link_ids:
+            return None
+
+        # Prefer XP_ (predicted), then NP_ (RefSeq curated), then any
+        # Fetch summaries to get accession strings
+        id_str = ",".join(link_ids[:20])  # limit to 20
+        summary_handle = Entrez.esummary(db="protein", id=id_str)
+        summaries = Entrez.read(summary_handle)
+        summary_handle.close()
+
+        xp_candidates = []
+        np_candidates = []
+        other_candidates = []
+
+        for s in summaries:
+            acc = str(s.get("AccessionVersion", ""))
+            length = int(s.get("Length", 0))
+            title = str(s.get("Title", ""))
+            entry = {"accession": acc, "length": length, "description": title}
+            if acc.startswith("XP_"):
+                xp_candidates.append(entry)
+            elif acc.startswith("NP_"):
+                np_candidates.append(entry)
+            else:
+                other_candidates.append(entry)
+
+        # Sort each class by length desc
+        for grp in [xp_candidates, np_candidates, other_candidates]:
+            grp.sort(key=lambda x: -x["length"])
+
+        # All candidates ordered XP_ → NP_ → other (up to 10)
+        all_candidates = (xp_candidates + np_candidates + other_candidates)[:10]
+
+        # Pick the longest among preferred class
+        for candidates in [xp_candidates, np_candidates, other_candidates]:
+            if candidates:
+                best = candidates[0]
+                prefix_class = "XP_" if xp_candidates and candidates is xp_candidates else (
+                    "NP_" if np_candidates and candidates is np_candidates else "protein"
+                )
+                return {
+                    "protein_acc": best["accession"],
+                    "how": f"linked {prefix_class} protein (longest, {best['length']} aa) via NCBI elink",
+                    "all_candidates": all_candidates,
+                }
+    except Exception as e:
+        print(f"[retrieval] nucleotide→protein resolution failed for {nuc_acc}: {e}")
+    return None
+
+
+def _resolve_gene_to_protein(gene_id: str) -> dict | None:
+    """
+    Given an NCBI gene ID, find linked protein records and return the best one.
+    """
+    try:
+        handle = Entrez.elink(dbfrom="gene", db="protein", id=gene_id, linkname="gene_protein_refseq")
+        records = Entrez.read(handle)
+        handle.close()
+
+        if not records or not records[0].get("LinkSetDb"):
+            return None
+
+        link_ids = [link["Id"] for link in records[0]["LinkSetDb"][0]["Link"]]
+        if not link_ids:
+            return None
+
+        id_str = ",".join(link_ids[:10])
+        summary_handle = Entrez.esummary(db="protein", id=id_str)
+        summaries = Entrez.read(summary_handle)
+        summary_handle.close()
+
+        candidates = [
+            {"accession": str(s.get("AccessionVersion", "")),
+             "length": int(s.get("Length", 0)),
+             "description": str(s.get("Title", ""))}
+            for s in summaries if s.get("AccessionVersion")
+        ]
+        if not candidates:
+            return None
+
+        candidates.sort(key=lambda x: -x["length"])
+        best = candidates[0]
+        return {
+            "protein_acc": best["accession"],
+            "how": f"linked RefSeq protein (longest, {best['length']} aa) via NCBI gene elink",
+            "all_candidates": candidates[:10],
+        }
+    except Exception as e:
+        print(f"[retrieval] gene→protein resolution failed for {gene_id}: {e}")
+    return None
 
 
 # ---------------------------------------------------------------------------

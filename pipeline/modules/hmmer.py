@@ -150,17 +150,24 @@ def _parse_result(data: dict) -> dict:
 
     # Navigate into the result structure — adjust path if actual shape differs
     hits = (
-        data.get("results", {}).get("hits")
+        data.get("result", {}).get("hits")
+        or data.get("results", {}).get("hits")
         or data.get("hits")
         or []
     )
 
     for hit in hits:
-        name = hit.get("acc") or hit.get("name") or "unknown"
+        if not hit.get("is_included", True):
+            continue
+        acc = hit.get("acc") or hit.get("name") or "unknown"
+        # Strip version suffix: "PF00049.23" → "PF00049"
+        name = acc.split(".")[0] if "." in acc else acc
         desc = hit.get("desc") or hit.get("description") or ""
         evalue = hit.get("evalue") or hit.get("pvalue") or 1.0
 
         for dom in (hit.get("domains") or []):
+            if not dom.get("is_included", True):
+                continue
             seq_start = dom.get("iali") or dom.get("ienv") or 0
             seq_end   = dom.get("jali") or dom.get("jenv") or 0
             dom_evalue = dom.get("ievalue") or evalue

@@ -1,0 +1,1016 @@
+{% extends "lab/lab_base.html" %}
+{% block title %}Motif Search — Singh Lab{% endblock %}
+
+{% block content %}
+<style>
+/* page-local overrides */
+.motif-hero { background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%); color: #fff; padding: 48px 0 36px; margin-bottom: 36px; }
+.motif-hero h1 { font-size: 2rem; font-weight: 800; margin-bottom: 8px; }
+.motif-hero p  { font-size: 1.02rem; color: #93c5fd; max-width: 600px; }
+.motif-page   { max-width: 900px; margin: 0 auto; padding: 0 24px 60px; }
+.motif-card   { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 24px; box-shadow: var(--shadow-sm); }
+.motif-card-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-light); margin-bottom: 14px; }
+.motif-section-label { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+textarea.motif-seq-input {
+  width: 100%; min-height: 110px; font-family: monospace; font-size: 0.9rem;
+  border: 1px solid var(--border); border-radius: 7px; padding: 10px 12px;
+  resize: vertical; outline: none; transition: border-color 0.15s;
+}
+textarea.motif-seq-input:focus { border-color: var(--accent-teal); }
+.motif-seq-meta { font-size: 0.75rem; color: var(--text-light); margin-top: 4px; }
+.motif-advanced-input {
+  width: 100%; padding: 9px 12px; font-family: monospace; font-size: 1rem;
+  border: 1px solid var(--border); border-radius: 7px; outline: none;
+  transition: border-color 0.15s; letter-spacing: 0.04em;
+}
+.motif-advanced-input:focus { border-color: var(--accent-teal); }
+.motif-run-btn {
+  padding: 10px 28px; background: var(--accent-teal); color: #fff; border: none;
+  border-radius: 8px; font-size: 0.95rem; font-weight: 700; cursor: pointer;
+  box-shadow: 0 2px 8px rgba(13,148,136,.25); transition: background 0.15s;
+}
+.motif-run-btn:hover { background: #0f766e; }
+.motif-run-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+.motif-err { color: var(--error); font-size: 0.84rem; margin-top: 6px; display: none; }
+.motif-results-header {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;
+}
+.motif-count-pill {
+  padding: 3px 12px; border-radius: 20px; font-size: 0.82rem; font-weight: 700;
+}
+.motif-count-pill.hits   { background: #d1fae5; color: #065f46; }
+.motif-count-pill.no-hits { background: #fef9c3; color: #92400e; }
+.export-btn {
+  padding: 5px 14px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.78rem;
+  background: var(--surface); cursor: pointer; transition: border-color 0.12s;
+}
+.export-btn:hover { border-color: var(--accent-teal); color: var(--accent-teal); }
+</style>
+
+<!-- Hero -->
+<div class="motif-hero">
+  <div class="lab-container">
+    <h1>Protein Motif Search</h1>
+    <p>Find patterns in any protein sequence — no regex knowledge required. Build motifs step-by-step or enter advanced syntax directly.</p>
+  </div>
+</div>
+
+<div class="motif-page">
+
+  <!-- ── 1. Sequence input ─────────────────────────────────── -->
+  <div class="motif-card">
+    <div class="motif-card-title">1 — Protein Sequence</div>
+
+    <div class="motif-section-label">Paste raw sequence or FASTA</div>
+    <textarea class="motif-seq-input" id="seq-input" placeholder="MKTAYIAKQRQISFVKSHFSRQ…  or  >MyProtein&#10;MKTAYIAKQR…" autocomplete="off" autocorrect="off" spellcheck="false"
+              oninput="onSeqInput()"></textarea>
+    <div class="motif-seq-meta" id="seq-meta">No sequence loaded</div>
+    <div class="motif-err" id="seq-err"></div>
+
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+      <button class="export-btn" onclick="loadExample('neprilysin')">Load example (Neprilysin)</button>
+      <button class="export-btn" onclick="clearSeq()">Clear</button>
+    </div>
+  </div>
+
+  <!-- ── 2. Motif builder ──────────────────────────────────── -->
+  <div class="motif-card">
+    <div class="motif-card-title">2 — Motif</div>
+
+    <!-- Mode toggle -->
+    <div class="motif-mode-bar" id="mode-bar">
+      <button class="motif-mode-btn active" id="btn-visual" onclick="setMode('visual')">Visual Builder</button>
+      <button class="motif-mode-btn" id="btn-advanced" onclick="setMode('advanced')">Advanced / Text</button>
+    </div>
+
+    <!-- Preset chips -->
+    <div class="motif-section-label">Quick presets</div>
+    <div class="motif-presets" id="preset-chips">
+      {% for p in presets %}
+      <button class="motif-preset-chip" title="{{ p.desc }}" onclick="loadPreset({{ loop.index0 }})">{{ p.name }}</button>
+      {% endfor %}
+    </div>
+
+    <!-- VISUAL BUILDER -->
+    <div id="panel-visual">
+      <div class="motif-section-label" style="margin-top:4px;">Build your motif — click a segment to edit, drag to reorder</div>
+      <div class="motif-builder" id="builder-track">
+        <!-- Segments rendered here by JS -->
+        <button class="motif-add-btn" onclick="openAddPopover(this)" id="add-residue-btn">+ Add residue</button>
+      </div>
+
+      <!-- Add-segment popover -->
+      <div class="seg-popover" id="seg-popover">
+        <div id="pop-residue-section">
+          <label>Amino acid(s)  <span style="color:var(--text-light);font-weight:400;">(single letter or [ST] group)</span></label>
+          <input type="text" id="pop-residue-input" placeholder="H, E, [ST], x …" maxlength="20" oninput="popPreview()">
+        </div>
+        <div id="pop-gap-section" style="display:none;">
+          <label>Spacing rule</label>
+          <select id="pop-gap-type" onchange="popGapTypeChange()">
+            <option value="exact">Exactly N residues</option>
+            <option value="range">Between N and M residues</option>
+            <option value="any">Any number (0 or more)</option>
+            <option value="one_plus">One or more</option>
+          </select>
+          <div id="pop-gap-exact" style="display:flex;gap:6px;margin-bottom:8px;">
+            <div style="flex:1;"><label>N</label><input type="number" id="pop-n" min="0" value="2" style="margin-bottom:0;" oninput="popPreview()"></div>
+          </div>
+          <div id="pop-gap-range" style="display:none;flex;gap:6px;margin-bottom:8px;">
+            <div style="flex:1;"><label>Min</label><input type="number" id="pop-min" min="0" value="0" style="margin-bottom:0;" oninput="popPreview()"></div>
+            <div style="flex:1;"><label>Max</label><input type="number" id="pop-max" min="0" value="10" style="margin-bottom:0;" oninput="popPreview()"></div>
+          </div>
+          <div id="pop-preview" style="font-family:monospace;font-size:0.8rem;color:var(--text-light);margin-bottom:8px;"></div>
+        </div>
+        <div style="display:flex;gap:7px;margin-bottom:8px;">
+          <button class="export-btn" style="flex:1;padding:5px 0;" onclick="popSwitchToResid()">Residue</button>
+          <button class="export-btn" style="flex:1;padding:5px 0;" onclick="popSwitchToGap()">Spacing</button>
+        </div>
+        <div class="pop-actions">
+          <button onclick="closePopover()">Cancel</button>
+          <button class="primary" onclick="commitPopover()">Add</button>
+        </div>
+      </div>
+
+      <!-- Live preview -->
+      <div class="motif-preview-bar" id="motif-preview-bar">
+        <span class="motif-preview-label">PROSITE</span>
+        <span class="motif-preview-value" id="preview-prosite">—</span>
+        <span class="motif-preview-label" style="margin-left:10px;">Regex</span>
+        <span class="motif-preview-regex" id="preview-regex">—</span>
+      </div>
+    </div>
+
+    <!-- ADVANCED MODE -->
+    <div id="panel-advanced" style="display:none;">
+      <div class="motif-section-label" style="margin-top:4px;">Enter motif in PROSITE or regex-like syntax</div>
+      <input class="motif-advanced-input" type="text" id="advanced-input"
+             placeholder="H-E-x(2)-H  or  HE..H  or  HE.{20,80}E"
+             autocomplete="off" autocorrect="off" spellcheck="false"
+             oninput="advancedInputChange()">
+      <div class="motif-preview-bar" style="margin-top:10px;" id="adv-preview-bar">
+        <span class="motif-preview-label">PROSITE</span>
+        <span class="motif-preview-value" id="adv-preview-prosite">—</span>
+        <span class="motif-preview-label" style="margin-left:10px;">Regex</span>
+        <span class="motif-preview-regex" id="adv-preview-regex">—</span>
+      </div>
+      <div style="margin-top:10px;font-size:0.78rem;color:var(--text-secondary);line-height:1.7;">
+        <strong>Syntax guide:</strong>
+        <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;">H-E-x(2)-H</code> PROSITE style ·
+        <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;">HE..H</code> regex style ·
+        <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;">[ST]</code> residue group ·
+        <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;">x(n,m)</code> range gap
+      </div>
+    </div>
+
+    <div class="motif-err" id="motif-err"></div>
+  </div>
+
+  <!-- ── Run button ────────────────────────────────────────── -->
+  <div style="display:flex;justify-content:flex-end;gap:12px;align-items:center;margin-bottom:24px;">
+    <span id="run-spinner" style="display:none;font-size:0.82rem;color:var(--text-light);">Searching…</span>
+    <button class="motif-run-btn" id="run-btn" onclick="runSearch()">Search sequence ›</button>
+  </div>
+
+  <!-- ── Results ───────────────────────────────────────────── -->
+  <div id="results-area" style="display:none;">
+
+    <div class="motif-card">
+      <div class="motif-results-header">
+        <div class="motif-card-title" style="margin:0;">Results</div>
+        <span id="res-count-pill" class="motif-count-pill"></span>
+        <span style="font-size:0.78rem;color:var(--text-light);" id="res-pattern-label"></span>
+        <div style="margin-left:auto;display:flex;gap:8px;">
+          <button class="export-btn" onclick="exportCSV()">⬇ CSV</button>
+          <button class="export-btn" onclick="exportJSON()">⬇ JSON</button>
+          <button class="export-btn" onclick="copyPositions()">Copy positions</button>
+        </div>
+      </div>
+
+      <!-- Hits table -->
+      <div id="hits-table-wrap" style="display:none;overflow-x:auto;margin-bottom:18px;">
+        <table class="motif-hits-table" id="hits-table">
+          <thead>
+            <tr>
+              <th>#</th><th>Start</th><th>End</th><th>Length</th><th>Matched sequence</th>
+            </tr>
+          </thead>
+          <tbody id="hits-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- No-hits message -->
+      <div id="no-hits-msg" style="display:none;padding:20px;text-align:center;color:var(--text-light);font-size:0.9rem;">
+        No matches found in the sequence. Try relaxing the spacing constraints or checking your pattern.
+      </div>
+    </div>
+
+    <!-- Sequence viewer -->
+    <div class="motif-card" id="seq-viewer-card">
+      <div class="motif-card-title">Sequence with highlighted matches</div>
+      <div style="font-size:0.74rem;color:var(--text-light);margin-bottom:8px;">
+        Click any row in the results table to jump to that position.
+        Numbers on the left are residue positions (1-based).
+      </div>
+      <div class="seq-viewer" id="seq-viewer-content"></div>
+    </div>
+
+  </div>
+
+  <!-- ── Tutorial ──────────────────────────────────────────── -->
+  <div class="motif-tutorial">
+    <div class="motif-tutorial-title">What is a protein motif? (Tutorial)</div>
+    <div class="motif-accordion">
+
+      <div class="motif-accordion-item">
+        <div class="motif-accordion-header" onclick="toggleAccordion(this)">
+          What is a protein motif? <span class="motif-accordion-arrow">▼</span>
+        </div>
+        <div class="motif-accordion-body">
+          <p>A <strong>protein motif</strong> is a short, conserved pattern of amino acids that recurs in many different proteins and is associated with a specific biological function or structural feature.</p>
+          <p style="margin-top:10px;">Motifs are much shorter than full protein domains (typically 4–20 residues) and can be separated by stretches of unrelated sequence — what matters is the pattern of key residues, not every amino acid in between.</p>
+          <p style="margin-top:10px;">Example: the motif <strong>HExxH</strong> appears in hundreds of enzymes. The two histidines (H) and glutamate (E) coordinate a zinc ion at the active site. The two middle positions (xx) can be almost any amino acid — what matters is that the spacing is exactly 2.</p>
+        </div>
+      </div>
+
+      <div class="motif-accordion-item">
+        <div class="motif-accordion-header" onclick="toggleAccordion(this)">
+          Why search for motifs? <span class="motif-accordion-arrow">▼</span>
+        </div>
+        <div class="motif-accordion-body">
+          <p>Motif searching is useful for:</p>
+          <ul style="padding-left:18px;margin-top:8px;list-style:disc;">
+            <li style="margin-bottom:6px;"><strong>Predicting enzyme function</strong> — e.g. finding HExxH in an uncharacterised protein suggests it might be a metalloprotease.</li>
+            <li style="margin-bottom:6px;"><strong>Identifying binding sites</strong> — e.g. CxxC motifs often coordinate zinc or form disulfide bonds.</li>
+            <li style="margin-bottom:6px;"><strong>Finding post-translational modification sites</strong> — e.g. N-x-S/T is the core N-glycosylation sequon.</li>
+            <li style="margin-bottom:6px;"><strong>Scanning newly sequenced proteins</strong> — before expensive experimental characterisation.</li>
+            <li style="margin-bottom:6px;"><strong>Comparative analysis</strong> — checking whether a motif is conserved across homologs.</li>
+          </ul>
+          <p style="margin-top:10px;background:#fef9c3;padding:10px 12px;border-radius:6px;font-size:0.85rem;">
+            <strong>Important:</strong> A motif hit is a hypothesis, not a proof. Finding HExxH does not guarantee zinc-binding or protease activity — you should always interpret motif results alongside domain annotations, structural data, and experimental evidence.
+          </p>
+        </div>
+      </div>
+
+      <div class="motif-accordion-item">
+        <div class="motif-accordion-header" onclick="toggleAccordion(this)">
+          Exact vs flexible motifs <span class="motif-accordion-arrow">▼</span>
+        </div>
+        <div class="motif-accordion-body">
+          <p>An <strong>exact motif</strong> requires a specific sequence at every position. Example: searching for <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;">KDEL</code> exactly. This is useful for very conserved signals like ER retention sequences.</p>
+          <p style="margin-top:10px;">A <strong>flexible motif</strong> specifies key residues but allows variable spacers. Example: <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;">HExxH</code> requires H, E, exactly 2 any residues, then H — but does not constrain those 2 middle positions.</p>
+          <p style="margin-top:10px;">Flexibility is important because:</p>
+          <ul style="padding-left:18px;list-style:disc;margin-top:6px;">
+            <li>Evolution tolerates substitutions at non-critical positions</li>
+            <li>Loops between functional residues vary in length</li>
+            <li>The same chemical function can be achieved with different surrounding sequences</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="motif-accordion-item">
+        <div class="motif-accordion-header" onclick="toggleAccordion(this)">
+          Worked example: HExxH metalloprotease motif <span class="motif-accordion-arrow">▼</span>
+        </div>
+        <div class="motif-accordion-body">
+          <p>The zinc metalloprotease motif is one of the most studied in biochemistry. It appears in neprilysin, thermolysin, angiotensin-converting enzyme (ACE), and hundreds of other enzymes.</p>
+          <div class="motif-example-block">H  E  x  x  H
+<span class="ex-comment">│  │  │  │  └── 2nd zinc-ligand histidine</span>
+<span class="ex-comment">│  │  └──┘──── two ANY residues (the spacer)</span>
+<span class="ex-comment">│  └────────── glutamate (catalytic base)</span>
+<span class="ex-comment">└───────────── 1st zinc-ligand histidine</span></div>
+          <p>In PROSITE syntax: <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;">H-E-x(2)-H</code></p>
+          <p style="margin-top:10px;">In neprilysin (Peptidase_M13 family), the full zinc-binding motif is extended: the two histidines in HExxH plus a downstream glutamate about 20–80 residues away form a three-ligand zinc coordination shell:</p>
+          <div class="motif-example-block">H-E-x(2)-H-x(20,80)-E</div>
+          <p style="margin-top:8px;">The downstream E is the third zinc ligand. Together these three residues (H, H, E) hold the catalytic zinc in place. Searching for both parts together gives a much more specific hit than HExxH alone.</p>
+          <p style="margin-top:10px;"><strong>How to build this in the Visual Builder:</strong></p>
+          <ol style="padding-left:18px;list-style:decimal;margin-top:6px;">
+            <li>Add residue: <strong>H</strong></li>
+            <li>Add spacing: directly adjacent (0 residues)</li>
+            <li>Add residue: <strong>E</strong></li>
+            <li>Add spacing: exactly <strong>2</strong> residues</li>
+            <li>Add residue: <strong>H</strong></li>
+            <li>Add spacing: between <strong>20</strong> and <strong>80</strong> residues</li>
+            <li>Add residue: <strong>E</strong></li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="motif-accordion-item">
+        <div class="motif-accordion-header" onclick="toggleAccordion(this)">
+          Worked example: R…S…E flexible pattern <span class="motif-accordion-arrow">▼</span>
+        </div>
+        <div class="motif-accordion-body">
+          <p>Sometimes you want to search for residues at variable distances — for example a catalytic triad where R, S, and E must all be present somewhere in the protein, in order, but not necessarily adjacent.</p>
+          <div class="motif-example-block">R-x(0,200)-S-x(0,200)-E</div>
+          <p>This means: find R, then 0 to 200 any residues, then S, then 0 to 200 any residues, then E. The "any number" spacers make this very flexible.</p>
+          <p style="margin-top:10px;background:#fef9c3;padding:10px 12px;border-radius:6px;font-size:0.85rem;">
+            <strong>Be careful with very wide spacers.</strong> Motifs like R-x(0,200)-S-x(0,200)-E will match almost any protein that contains all three residues in order, which is most proteins. Use wide spacers only when you have strong biological reason to believe the residues are functionally coupled despite the distance.
+          </p>
+        </div>
+      </div>
+
+      <div class="motif-accordion-item">
+        <div class="motif-accordion-header" onclick="toggleAccordion(this)">
+          Worked example: N-x-S/T glycosylation sequon <span class="motif-accordion-arrow">▼</span>
+        </div>
+        <div class="motif-accordion-body">
+          <p>N-linked glycosylation occurs on asparagine (N) residues within the sequence N-x-S/T, where x is any amino acid except proline, and S/T means serine or threonine.</p>
+          <div class="motif-example-block">N-x(1)-[ST]   <span class="ex-comment">← finds all N-x-S and N-x-T</span></div>
+          <p style="margin-top:10px;">In the Visual Builder:</p>
+          <ol style="padding-left:18px;list-style:decimal;margin-top:6px;">
+            <li>Add residue: <strong>N</strong></li>
+            <li>Add spacing: exactly <strong>1</strong> residue</li>
+            <li>Add residue: <strong>[ST]</strong> (type the brackets to mean "S or T")</li>
+          </ol>
+          <p style="margin-top:10px;">This search will find all potential N-glycosylation sites. Note that in biology, proline at the x position prevents glycosylation — this search does not exclude proline, so you may get some false positives at N-P-S/T sites.</p>
+        </div>
+      </div>
+
+      <div class="motif-accordion-item">
+        <div class="motif-accordion-header" onclick="toggleAccordion(this)">
+          How to use the Visual Builder <span class="motif-accordion-arrow">▼</span>
+        </div>
+        <div class="motif-accordion-body">
+          <ol style="padding-left:18px;list-style:decimal;line-height:2;">
+            <li>Click <strong>"+ Add residue"</strong> in the builder track.</li>
+            <li>A small panel appears. Click <strong>"Residue"</strong> to add an amino acid (type single letter like <code>H</code>, or a group like <code>[ST]</code>), or <strong>"Spacing"</strong> to add a variable-length gap.</li>
+            <li>For spacing, choose: <em>exactly N</em>, <em>between N and M</em>, <em>any number</em>, or <em>one or more</em>.</li>
+            <li>Click <strong>Add</strong> to insert the segment into the builder track.</li>
+            <li>Repeat for each element in your motif.</li>
+            <li>Click the small <strong>×</strong> on any segment to remove it.</li>
+            <li>The <strong>PROSITE</strong> and <strong>Regex</strong> previews update live so you can see what pattern you're building.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="motif-accordion-item">
+        <div class="motif-accordion-header" onclick="toggleAccordion(this)">
+          Advanced syntax reference <span class="motif-accordion-arrow">▼</span>
+        </div>
+        <div class="motif-accordion-body">
+          <p>In Advanced mode you can type directly. Two syntax flavours are supported:</p>
+          <p style="margin-top:12px;"><strong>PROSITE-like</strong> (dash-separated tokens):</p>
+          <table style="font-size:0.83rem;border-collapse:collapse;margin-top:6px;width:100%;">
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:5px 10px;font-family:monospace;color:var(--accent-teal);background:#f0fdf4;">H</td>
+              <td style="padding:5px 10px;">Single amino acid</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:5px 10px;font-family:monospace;color:var(--accent-teal);background:#f0fdf4;">x</td>
+              <td style="padding:5px 10px;">Any single amino acid</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:5px 10px;font-family:monospace;color:var(--accent-teal);background:#f0fdf4;">x(2)</td>
+              <td style="padding:5px 10px;">Exactly 2 any residues</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:5px 10px;font-family:monospace;color:var(--accent-teal);background:#f0fdf4;">x(20,80)</td>
+              <td style="padding:5px 10px;">Between 20 and 80 any residues</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:5px 10px;font-family:monospace;color:var(--accent-teal);background:#f0fdf4;">[ST]</td>
+              <td style="padding:5px 10px;">S or T (residue group)</td>
+            </tr>
+            <tr>
+              <td style="padding:5px 10px;font-family:monospace;color:var(--accent-teal);background:#f0fdf4;">{P}</td>
+              <td style="padding:5px 10px;">Anything except P (exclusion group)</td>
+            </tr>
+          </table>
+          <p style="margin-top:12px;"><strong>Regex-like</strong> (no dashes):</p>
+          <table style="font-size:0.83rem;border-collapse:collapse;margin-top:6px;width:100%;">
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:5px 10px;font-family:monospace;color:var(--accent-teal);background:#f0fdf4;">.</td>
+              <td style="padding:5px 10px;">Any single amino acid</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:5px 10px;font-family:monospace;color:var(--accent-teal);background:#f0fdf4;">.{2}</td>
+              <td style="padding:5px 10px;">Exactly 2 any residues</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:5px 10px;font-family:monospace;color:var(--accent-teal);background:#f0fdf4;">.{20,80}</td>
+              <td style="padding:5px 10px;">Between 20 and 80 any residues</td>
+            </tr>
+            <tr>
+              <td style="padding:5px 10px;font-family:monospace;color:var(--accent-teal);background:#f0fdf4;">[ST]</td>
+              <td style="padding:5px 10px;">Residue group (same as PROSITE)</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="motif-accordion-item">
+        <div class="motif-accordion-header" onclick="toggleAccordion(this)">
+          Understanding the results <span class="motif-accordion-arrow">▼</span>
+        </div>
+        <div class="motif-accordion-body">
+          <p><strong>Residue numbering</strong> in the results table uses <strong>1-based indexing</strong>: residue 1 is the first amino acid in the sequence you entered (regardless of whether it has a UniProt or other biological number).</p>
+          <p style="margin-top:10px;"><strong>Start</strong> = position of the first matched residue (1-based).<br>
+          <strong>End</strong> = position of the last matched residue (1-based, inclusive).<br>
+          <strong>Length</strong> = End − Start + 1 = total span of the motif hit.</p>
+          <p style="margin-top:10px;">The <strong>sequence viewer</strong> shows the full protein with match regions highlighted. Different colour highlights represent different motif queries (if you run multiple searches). Click any row in the results table to scroll the viewer to that position.</p>
+          <p style="margin-top:10px;background:#fef9c3;padding:10px 12px;border-radius:6px;font-size:0.85rem;">
+            <strong>Motif hits are not proof of function.</strong> A sequence match shows that the pattern is present, not that the protein actually performs the associated function. False positives are common, especially with short or flexible motifs. Always interpret results in context: check domain annotations, conservation, and experimental data.
+          </p>
+        </div>
+      </div>
+
+    </div><!-- end accordion -->
+  </div><!-- end tutorial -->
+
+</div><!-- end motif-page -->
+
+<script>
+// ============================================================
+// Data + state
+// ============================================================
+const PRESETS = {{ presets | tojson }};
+const UNLIMITED = -1;
+
+let segments     = [];   // [{type:'residue',value:'H'}, {type:'gap',min:0,max:0}, …]
+let currentMode  = 'visual';
+let lastHits     = [];
+let lastSequence = '';
+let popoverMode  = 'residue';  // 'residue' | 'gap'
+
+// Neprilysin (human MME / CD10) — UniProt P08473, residues 1-750 truncated
+const EXAMPLE_SEQ = `MGATAAPGAGGPGPRARREGPGELALGPEDSATGPQGLENPSTSLREDSAENFLSYIQRQEPFQDLTIEEQNRSDFLLLNLLKDPKFLEEIHKFLEEVQKLKDEVLEQLSQELEGLQAKLEQLQEELAELEQTLRGQQEFQAVMKEVNSLKKDIEQALQKAEQTLQTELQALKQNLESYLAEKHQALELAQENLLQAKLQELESQLAQLEMQLEDTKQLQNELEQLTRELQLEKNQLKEKLQELAQQLKEQVELENDRLQKQKEELQAAGELQEQLEALKAQLEQERTTLEQERKELEEELREVNRELQKQKEELQELEKRLEAELEQILQELEARLEEEQQRLRKELEELDLQEELRDRGQKLQKQLENELEELEKAKLRELEELKSELQNLRE`;
+
+// ============================================================
+// Sequence input
+// ============================================================
+function onSeqInput() {
+  const raw = document.getElementById('seq-input').value;
+  const cleaned = cleanSequence(raw);
+  const meta = document.getElementById('seq-meta');
+  const err  = document.getElementById('seq-err');
+  if (!raw.trim()) { meta.textContent = 'No sequence loaded'; err.style.display='none'; return; }
+  if (cleaned.error) { meta.textContent = ''; showErr(err, cleaned.error); return; }
+  err.style.display = 'none';
+  meta.textContent = `${cleaned.seq.length} residues loaded`;
+}
+
+function cleanSequence(raw) {
+  let lines = raw.trim().split('\n');
+  lines = lines.filter(l => !l.startsWith('>'));
+  let seq = lines.join('').toUpperCase().replace(/\s/g, '');
+  const valid = new Set('ACDEFGHIKLMNPQRSTVWYBZXOU*-');
+  const invalid = [...new Set(seq)].filter(c => !valid.has(c));
+  if (invalid.length) return { error: `Invalid characters: ${invalid.join(', ')}. Please provide a protein sequence.` };
+  seq = seq.replace(/[^ACDEFGHIKLMNPQRSTVWY]/g, '');
+  if (!seq) return { error: 'No valid amino acid characters found.' };
+  return { seq };
+}
+
+function loadExample(name) {
+  if (name === 'neprilysin') {
+    document.getElementById('seq-input').value = EXAMPLE_SEQ;
+    onSeqInput();
+    // Load the HExxH+E preset
+    const idx = PRESETS.findIndex(p => p.id === 'hexxh_e');
+    if (idx >= 0) loadPreset(idx);
+  }
+}
+
+function clearSeq() {
+  document.getElementById('seq-input').value = '';
+  onSeqInput();
+}
+
+// ============================================================
+// Mode toggle
+// ============================================================
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('panel-visual').style.display   = mode === 'visual'   ? '' : 'none';
+  document.getElementById('panel-advanced').style.display = mode === 'advanced' ? '' : 'none';
+  document.getElementById('btn-visual').classList.toggle('active',   mode === 'visual');
+  document.getElementById('btn-advanced').classList.toggle('active', mode === 'advanced');
+  if (mode === 'advanced') {
+    // Sync current visual segments to the advanced input
+    const prosite = segmentsToProsite(segments);
+    if (prosite) document.getElementById('advanced-input').value = prosite;
+    advancedInputChange();
+  }
+}
+
+// ============================================================
+// Presets
+// ============================================================
+function loadPreset(idx) {
+  const p = PRESETS[idx];
+  if (!p) return;
+  // Highlight active chip
+  document.querySelectorAll('.motif-preset-chip').forEach((c,i) => c.classList.toggle('active', i===idx));
+  // Parse and load into visual builder
+  const result = parsePrositePattern(p.pattern);
+  segments = result.segments;
+  renderBuilder();
+  updatePreview();
+  // Also sync advanced input
+  document.getElementById('advanced-input').value = p.pattern;
+  advancedInputChange();
+}
+
+// ============================================================
+// ──────────── CLIENT-SIDE MOTIF PARSER ──────────────────────
+// (Mirrors the Python backend logic for live preview)
+// ============================================================
+
+const ANY_AA = '[ACDEFGHIKLMNPQRSTVWY]';
+const AMINO_ACIDS = new Set('ACDEFGHIKLMNPQRSTVWY');
+
+function parsePrositePattern(text) {
+  text = text.trim();
+  const tokens = text.split('-').map(t => t.trim()).filter(Boolean);
+  let segs = [];
+  for (const tok of tokens) {
+    // x(n) or x(n,m)
+    const xm = tok.match(/^[xX]\((\d+)(?:,(\d+))?\)$/);
+    if (xm) { segs.push({type:'gap', min:+xm[1], max: xm[2]!==undefined ? +xm[2] : +xm[1]}); continue; }
+    // bare x
+    if (tok.toLowerCase() === 'x') { segs.push({type:'gap', min:1, max:1}); continue; }
+    // [ST] group
+    if (tok.startsWith('[') && tok.endsWith(']')) { segs.push({type:'residue', value:tok.toUpperCase()}); continue; }
+    // {P} exclusion
+    if (tok.startsWith('{') && tok.endsWith('}')) { segs.push({type:'residue', value:`[^${tok.slice(1,-1).toUpperCase()}]`}); continue; }
+    // single AA
+    if (tok.length === 1 && AMINO_ACIDS.has(tok.toUpperCase())) { segs.push({type:'residue', value:tok.toUpperCase()}); continue; }
+    // multi-char literal without dashes
+    for (const ch of tok) {
+      if (AMINO_ACIDS.has(ch.toUpperCase())) segs.push({type:'residue', value:ch.toUpperCase()});
+      else if ('xX.'.includes(ch)) segs.push({type:'gap', min:1, max:1});
+    }
+  }
+  segs = mergeGaps(segs);
+  return {segments: segs, regex: segmentsToRegex(segs)};
+}
+
+function parseAdvancedPattern(text) {
+  text = text.trim();
+  if (!text) return {segments:[], regex:''};
+  if (text.includes('-') || /[xX]\(/.test(text)) return parsePrositePattern(text);
+  // regex-like
+  let segs = [];
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (('.xX'.includes(ch)) && i+1 < text.length && text[i+1] === '{') {
+      const end = text.indexOf('}', i+2);
+      if (end !== -1) {
+        const inner = text.slice(i+2, end).split(',');
+        segs.push({type:'gap', min:+inner[0], max: inner[1]!==undefined ? +inner[1] : +inner[0]});
+        i = end+1; continue;
+      }
+    }
+    if ('.xX'.includes(ch)) { segs.push({type:'gap',min:1,max:1}); i++; continue; }
+    if (ch === '[') {
+      const close = text.indexOf(']', i+1);
+      if (close !== -1) { segs.push({type:'residue', value:text.slice(i,close+1).toUpperCase()}); i=close+1; continue; }
+    }
+    if (ch === '{') {
+      const close = text.indexOf('}', i+1);
+      if (close !== -1) { segs.push({type:'residue', value:`[^${text.slice(i+1,close).toUpperCase()}]`}); i=close+1; continue; }
+    }
+    if (AMINO_ACIDS.has(ch.toUpperCase())) { segs.push({type:'residue', value:ch.toUpperCase()}); i++; continue; }
+    i++;
+  }
+  segs = mergeGaps(segs);
+  return {segments:segs, regex:segmentsToRegex(segs)};
+}
+
+function mergeGaps(segs) {
+  if (!segs.length) return segs;
+  const out = [];
+  let i = 0;
+  while (i < segs.length) {
+    const s = segs[i];
+    if (s.type === 'gap') {
+      let mn = s.min, mx = s.max;
+      while (i+1 < segs.length && segs[i+1].type === 'gap') {
+        i++; mn += segs[i].min;
+        mx = (mx===UNLIMITED || segs[i].max===UNLIMITED) ? UNLIMITED : mx+segs[i].max;
+      }
+      out.push({type:'gap',min:mn,max:mx});
+    } else { out.push(s); }
+    i++;
+  }
+  return out;
+}
+
+function segmentsToRegex(segs) {
+  return segs.map(s => {
+    if (s.type === 'residue') {
+      const v = s.value;
+      if (v === 'X' || v === '.') return ANY_AA;
+      if (v.startsWith('[')) return v;
+      return v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+    const mn = s.min, mx = s.max;
+    if (mn===0 && mx===0) return '';
+    if (mx===UNLIMITED) return mn===0 ? `${ANY_AA}*` : mn===1 ? `${ANY_AA}+` : `${ANY_AA}{${mn},}`;
+    if (mn===mx) return `${ANY_AA}{${mn}}`;
+    return `${ANY_AA}{${mn},${mx}}`;
+  }).join('');
+}
+
+function segmentsToProsite(segs) {
+  const parts = [];
+  for (const s of segs) {
+    if (s.type === 'residue') { parts.push(s.value); continue; }
+    const mn=s.min, mx=s.max;
+    if (mn===0 && mx===0) continue;
+    if (mx===UNLIMITED) parts.push(mn===0 ? 'x(0,*)' : `x(${mn},*)`);
+    else if (mn===mx) parts.push(`x(${mn})`);
+    else parts.push(`x(${mn},${mx})`);
+  }
+  return parts.join('-');
+}
+
+function segmentsToHuman(segs) {
+  return segs.map(s => {
+    if (s.type === 'residue') return s.value.startsWith('[') ? `any of ${s.value}` : s.value;
+    const mn=s.min, mx=s.max;
+    if (mn===0 && mx===0) return 'adjacent';
+    if (mx===UNLIMITED) return mn===0 ? 'any number' : mn===1 ? '1+' : `${mn}+`;
+    if (mn===mx) return `exactly ${mn}`;
+    return `${mn}–${mx}`;
+  }).join(' — ');
+}
+
+// ============================================================
+// Visual builder rendering
+// ============================================================
+function renderBuilder() {
+  const track = document.getElementById('builder-track');
+  // Remove all segments (keep the add button)
+  track.querySelectorAll('.motif-segment, .motif-gap-pill').forEach(el => el.remove());
+
+  const addBtn = document.getElementById('add-residue-btn');
+  segments.forEach((seg, idx) => {
+    const el = document.createElement('div');
+    if (seg.type === 'residue') {
+      el.className = 'motif-segment';
+      el.innerHTML = `<span>${escHtml(seg.value)}</span>
+        <button class="seg-del" title="Remove" onclick="removeSeg(${idx})">✕</button>`;
+    } else {
+      el.className = 'motif-gap-pill';
+      el.innerHTML = `<span>${gapLabel(seg)}</span>
+        <button class="seg-del" title="Remove" onclick="removeSeg(${idx})">✕</button>`;
+    }
+    track.insertBefore(el, addBtn);
+  });
+}
+
+function gapLabel(seg) {
+  const mn=seg.min, mx=seg.max;
+  if (mn===0 && mx===0) return '⊕ adjacent';
+  if (mx===UNLIMITED) return mn===0 ? '⋯ any' : `⋯ ${mn}+`;
+  if (mn===mx) return `⋯ ×${mn}`;
+  return `⋯ ${mn}–${mx}`;
+}
+
+function removeSeg(idx) {
+  segments.splice(idx, 1);
+  renderBuilder();
+  updatePreview();
+}
+
+// ============================================================
+// Popover (add segment)
+// ============================================================
+function openAddPopover(btn) {
+  const pop = document.getElementById('seg-popover');
+  // Position relative to the track
+  const track = document.getElementById('builder-track');
+  track.style.position = 'relative';
+  pop.style.left = btn.offsetLeft + 'px';
+  popoverMode = 'residue';
+  showPopoverSection('residue');
+  pop.classList.add('open');
+  document.getElementById('pop-residue-input').value = '';
+  document.getElementById('pop-residue-input').focus();
+  // Close on outside click
+  setTimeout(() => document.addEventListener('click', outsidePopoverClick, {once:true}), 10);
+}
+
+function outsidePopoverClick(e) {
+  const pop = document.getElementById('seg-popover');
+  if (!pop.contains(e.target)) closePopover();
+}
+
+function closePopover() {
+  document.getElementById('seg-popover').classList.remove('open');
+  document.removeEventListener('click', outsidePopoverClick);
+}
+
+function popSwitchToResid() { popoverMode='residue'; showPopoverSection('residue'); }
+function popSwitchToGap()   { popoverMode='gap';     showPopoverSection('gap'); }
+
+function showPopoverSection(mode) {
+  document.getElementById('pop-residue-section').style.display = mode==='residue' ? '' : 'none';
+  document.getElementById('pop-gap-section').style.display     = mode==='gap'     ? '' : 'none';
+  popPreview();
+}
+
+function popGapTypeChange() {
+  const t = document.getElementById('pop-gap-type').value;
+  document.getElementById('pop-gap-exact').style.display = t==='exact' ? 'flex' : 'none';
+  document.getElementById('pop-gap-range').style.display = t==='range' ? 'flex' : 'none';
+  popPreview();
+}
+
+function popPreview() {
+  const el = document.getElementById('pop-preview');
+  if (popoverMode === 'residue') { el.textContent = ''; return; }
+  const t = document.getElementById('pop-gap-type').value;
+  let label = '';
+  if (t === 'exact') label = `exactly ${document.getElementById('pop-n').value || 0} residues`;
+  else if (t === 'range') label = `${document.getElementById('pop-min').value||0}–${document.getElementById('pop-max').value||0} residues`;
+  else if (t === 'any') label = 'any number (0 or more)';
+  else label = 'one or more';
+  el.textContent = label;
+}
+
+function commitPopover() {
+  if (popoverMode === 'residue') {
+    let val = document.getElementById('pop-residue-input').value.trim().toUpperCase();
+    if (!val) return;
+    // Validate: single AA, group [..], or x/.
+    if (val === 'X' || val === '.') { segments.push({type:'gap',min:1,max:1}); }
+    else if (/^[ACDEFGHIKLMNPQRSTVWY]$/.test(val) || (val.startsWith('[') && val.endsWith(']'))) {
+      segments.push({type:'residue', value:val});
+    } else {
+      // Try to parse as multi-char sequence or residue group
+      segments.push({type:'residue', value:val});
+    }
+  } else {
+    const t = document.getElementById('pop-gap-type').value;
+    let mn=0, mx=0;
+    if (t==='exact')    { mn=mx=+(document.getElementById('pop-n').value||0); }
+    else if (t==='range') { mn=+(document.getElementById('pop-min').value||0); mx=+(document.getElementById('pop-max').value||0); }
+    else if (t==='any')   { mn=0; mx=UNLIMITED; }
+    else                  { mn=1; mx=UNLIMITED; }
+    segments.push({type:'gap',min:mn,max:mx});
+  }
+  closePopover();
+  renderBuilder();
+  updatePreview();
+}
+
+// ============================================================
+// Live preview
+// ============================================================
+function updatePreview() {
+  const regex   = segmentsToRegex(segments);
+  const prosite = segmentsToProsite(segments);
+  document.getElementById('preview-prosite').textContent = prosite || '—';
+  document.getElementById('preview-regex').textContent   = regex   || '—';
+}
+
+function advancedInputChange() {
+  const text = document.getElementById('advanced-input').value.trim();
+  if (!text) {
+    document.getElementById('adv-preview-prosite').textContent = '—';
+    document.getElementById('adv-preview-regex').textContent   = '—';
+    return;
+  }
+  const result = parseAdvancedPattern(text);
+  document.getElementById('adv-preview-prosite').textContent = segmentsToProsite(result.segments) || '—';
+  document.getElementById('adv-preview-regex').textContent   = result.regex || '—';
+  // Sync segments for potential visual use
+  segments = result.segments;
+}
+
+// ============================================================
+// Search
+// ============================================================
+function runSearch() {
+  const seqRaw = document.getElementById('seq-input').value;
+  const cleaned = cleanSequence(seqRaw);
+  const seqErr = document.getElementById('seq-err');
+  const motifErr = document.getElementById('motif-err');
+
+  if (cleaned.error) { showErr(seqErr, cleaned.error); return; }
+  seqErr.style.display = 'none';
+
+  let pattern = null;
+  let usedSegments = null;
+
+  if (currentMode === 'visual') {
+    if (!segments.length) { showErr(motifErr, 'Please add at least one residue to the motif builder.'); return; }
+    usedSegments = segments;
+  } else {
+    pattern = document.getElementById('advanced-input').value.trim();
+    if (!pattern) { showErr(motifErr, 'Please enter a motif pattern.'); return; }
+  }
+  motifErr.style.display = 'none';
+
+  const btn = document.getElementById('run-btn');
+  const spinner = document.getElementById('run-spinner');
+  btn.disabled = true;
+  spinner.style.display = '';
+
+  const body = {sequence: cleaned.seq};
+  if (usedSegments) body.segments = usedSegments;
+  else body.pattern = pattern;
+
+  fetch('/tools/motif/search', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body),
+  })
+  .then(r => r.json())
+  .then(data => {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+    if (!data.ok) { showErr(motifErr, data.error || 'Search failed.'); return; }
+    lastHits     = data.hits;
+    lastSequence = cleaned.seq;
+    displayResults(data, cleaned.seq);
+  })
+  .catch(e => {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+    showErr(motifErr, 'Network error — is the server running?');
+  });
+}
+
+// ============================================================
+// Results display
+// ============================================================
+function displayResults(data, seq) {
+  const area = document.getElementById('results-area');
+  area.style.display = '';
+
+  // Count pill
+  const pill = document.getElementById('res-count-pill');
+  if (data.hit_count > 0) {
+    pill.className = 'motif-count-pill hits';
+    pill.textContent = `${data.hit_count} hit${data.hit_count!==1?'s':''}`;
+  } else {
+    pill.className = 'motif-count-pill no-hits';
+    pill.textContent = 'No hits';
+  }
+
+  // Pattern label
+  document.getElementById('res-pattern-label').textContent = data.prosite ? `Pattern: ${data.prosite}` : '';
+
+  // Hits table
+  const tbody = document.getElementById('hits-tbody');
+  const tableWrap = document.getElementById('hits-table-wrap');
+  const noMsg = document.getElementById('no-hits-msg');
+
+  if (data.hit_count > 0) {
+    tableWrap.style.display = '';
+    noMsg.style.display = 'none';
+    tbody.innerHTML = '';
+    data.hits.forEach((h,i) => {
+      const tr = document.createElement('tr');
+      tr.dataset.start = h.start;
+      tr.onclick = () => scrollToHit(h.start);
+      tr.innerHTML = `<td>${i+1}</td><td>${h.start}</td><td>${h.end}</td><td>${h.end-h.start+1}</td><td><span class="motif-hit-seq">${escHtml(h.match)}</span></td>`;
+      tbody.appendChild(tr);
+    });
+  } else {
+    tableWrap.style.display = 'none';
+    noMsg.style.display = '';
+  }
+
+  // Sequence viewer
+  renderSeqViewer(seq, data.hits, 0);
+  area.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+// ============================================================
+// Sequence viewer
+// ============================================================
+const LINE_LEN = 60;   // residues per line
+
+function renderSeqViewer(seq, hits, colorIdx) {
+  // Build hit coverage map: position → hit index (0-based)
+  // A residue can be covered by multiple hits; we show the first for colour
+  const coverage = new Array(seq.length + 1).fill(-1);
+  hits.forEach((h, i) => {
+    for (let p = h.start; p <= h.end && p <= seq.length; p++) {
+      if (coverage[p] === -1) coverage[p] = i;
+    }
+  });
+
+  const container = document.getElementById('seq-viewer-content');
+  container.innerHTML = '';
+
+  for (let lineStart = 0; lineStart < seq.length; lineStart += LINE_LEN) {
+    const lineEnd = Math.min(lineStart + LINE_LEN, seq.length);
+    const lineNum = lineStart + 1;
+
+    const lineDiv = document.createElement('div');
+    lineDiv.className = 'seq-line';
+    lineDiv.id = `seqline-${lineNum}`;
+
+    const numSpan = document.createElement('span');
+    numSpan.className = 'seq-num';
+    numSpan.textContent = lineNum;
+    lineDiv.appendChild(numSpan);
+
+    const textSpan = document.createElement('span');
+    textSpan.className = 'seq-text';
+
+    for (let pos = lineStart + 1; pos <= lineEnd; pos++) {
+      const aa = seq[pos - 1];
+      const hitIdx = coverage[pos];
+      if (hitIdx >= 0) {
+        const span = document.createElement('span');
+        span.className = hitColorClass(hitIdx);
+        span.id = `aa-${pos}`;
+        span.title = `Residue ${pos} — Hit #${hitIdx+1}`;
+        span.textContent = aa;
+        textSpan.appendChild(span);
+      } else {
+        textSpan.appendChild(document.createTextNode(aa));
+      }
+    }
+    lineDiv.appendChild(textSpan);
+    container.appendChild(lineDiv);
+  }
+}
+
+function hitColorClass(idx) {
+  const cls = ['seq-hit-1','seq-hit-2','seq-hit-3','seq-hit-4','seq-hit-5'];
+  return cls[idx % cls.length] || 'seq-hit-other';
+}
+
+function scrollToHit(start) {
+  const el = document.getElementById(`aa-${start}`) || document.getElementById(`seqline-${Math.max(1, start-2)}`);
+  if (el) {
+    const viewer = document.getElementById('seq-viewer-content');
+    viewer.scrollTop = el.offsetTop - viewer.offsetTop - 20;
+    // Brief highlight pulse
+    el.style.outline = '2px solid #fff';
+    setTimeout(() => el.style.outline = '', 800);
+  }
+}
+
+// ============================================================
+// Export
+// ============================================================
+function exportCSV() {
+  if (!lastHits.length) return;
+  let csv = 'Hit,Start,End,Length,Match\n';
+  lastHits.forEach((h,i) => {
+    csv += `${i+1},${h.start},${h.end},${h.end-h.start+1},"${h.match}"\n`;
+  });
+  download('motif_hits.csv', csv, 'text/csv');
+}
+
+function exportJSON() {
+  if (!lastHits.length) return;
+  const data = {
+    pattern:   document.getElementById(currentMode==='visual'?'preview-prosite':'adv-preview-prosite').textContent,
+    hit_count: lastHits.length,
+    hits:      lastHits,
+  };
+  download('motif_hits.json', JSON.stringify(data, null, 2), 'application/json');
+}
+
+function copyPositions() {
+  if (!lastHits.length) return;
+  const txt = lastHits.map(h => `${h.start}-${h.end}`).join(', ');
+  navigator.clipboard.writeText(txt).catch(() => prompt('Copy:', txt));
+}
+
+function download(name, content, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], {type}));
+  a.download = name;
+  a.click();
+}
+
+// ============================================================
+// Tutorial accordion
+// ============================================================
+function toggleAccordion(header) {
+  const body = header.nextElementSibling;
+  const isOpen = body.classList.contains('open');
+  // Close all
+  document.querySelectorAll('.motif-accordion-body.open').forEach(b => b.classList.remove('open'));
+  document.querySelectorAll('.motif-accordion-header.open').forEach(h => h.classList.remove('open'));
+  if (!isOpen) { body.classList.add('open'); header.classList.add('open'); }
+}
+
+// ============================================================
+// Utilities
+// ============================================================
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function showErr(el, msg) {
+  el.textContent = msg;
+  el.style.display = '';
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => { renderBuilder(); updatePreview(); });
+</script>
+{% endblock %}

@@ -15,6 +15,8 @@ Alternative: "nr" for broader search but much slower (10–30+ min)
     is not blocked.
 """
 
+import re
+
 try:
     from Bio.Blast import NCBIWWW, NCBIXML
     from Bio import Entrez as _Entrez
@@ -94,9 +96,12 @@ def run(sequence: str, job_dir: str, database: str = _DATABASE, max_hits: int = 
         identity_pct = round(hsp.identities / align_len * 100, 1)
         coverage_pct  = round((hsp.query_end - hsp.query_start + 1) / seq_len * 100, 1)
 
+        protein_name, organism = _parse_title(alignment.title)
         hits.append({
             "accession":    alignment.accession,
-            "title":        alignment.title[:120],   # truncate for display
+            "title":        alignment.title[:120],   # full raw title for reference
+            "protein_name": protein_name,
+            "organism":     organism,
             "length":       alignment.length,
             "e_value":      hsp.expect,
             "score":        hsp.score,
@@ -115,3 +120,46 @@ def run(sequence: str, job_dir: str, database: str = _DATABASE, max_hits: int = 
         },
         "error": "",
     }
+
+
+def _parse_title(title: str) -> tuple:
+    """
+    Extract (protein_name, organism) from a BLAST hit title.
+
+    Handles formats:
+      sp|P08473|NEP_HUMAN RecName: Full=Neprilysin; Flags: Precursor [Homo sapiens]
+      sp|W4VS99.1| RecName: Full=Neprilysin-1; Flags: Precursor [Trittame loki]
+      gi|12345|ref|NP_001234.1| Hypothetical protein [Mus musculus]
+      Simple description without prefix [Organism]
+
+    Returns:
+        (protein_name: str, organism: str)
+        Both stripped; empty string if not found.
+    """
+    # Strip leading db|acc| prefixes (sp|ACC|GENE  or  gb|ACC|  etc.)
+    # These look like:  sp|P08473|NEP_HUMAN  or  sp|W4VS99.1|
+    stripped = re.sub(r'^(?:[a-z]{2,4}\|[^\|]+\|[^\s]*\s*)+', '', title, flags=re.IGNORECASE).strip()
+    if not stripped:
+        stripped = title
+
+    # Extract organism from [...] at the end
+    organism = ""
+    org_m = re.search(r'\[([^\[\]]+)\]\s*$', stripped)
+    if org_m:
+        organism = org_m.group(1).strip()
+        stripped = stripped[:org_m.start()].strip()
+
+    # Extract protein name from RecName: Full=...
+    recname_m = re.search(r'RecName:\s*Full=([^;{[]+)', stripped, re.IGNORECASE)
+    if recname_m:
+        protein_name = recname_m.group(1).strip().rstrip(';').strip()
+    else:
+        # Remove flag-like suffixes (Flags: ..., SubName: ..., AltName: ...)
+        clean = re.sub(r'(?:Flags|SubName|AltName|Contains|Includes)\s*:.*', '', stripped, flags=re.IGNORECASE).strip()
+        protein_name = clean.rstrip(';').strip() or stripped.strip()
+
+    # Cap length for display
+    if len(protein_name) > 80:
+        protein_name = protein_name[:77] + "…"
+
+    return protein_name, organism

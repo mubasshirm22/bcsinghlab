@@ -2,7 +2,7 @@ import json
 import time
 import os
 from lxml import html
-from services import ss, psi, jpred, raptorx, pss, sable, sspro, yaspin, phdpsi, profsec, predator, emailtools, htmlmaker, batchtools, maketable
+from services import ss, psi, jpred, raptorx, pss, sable, sspro, yaspin, phdpsi, profsec, predator, netsurf, emailtools, htmlmaker, batchtools, maketable
 from datetime import datetime
 
 from forms import SubmissionForm
@@ -70,7 +70,8 @@ def check_service_health():
 		"Yaspin": "http://www.ibi.vu.nl/programs/yaspinwww/",
 		"PHDpsi": "https://predictprotein.org/",
 		"PROFsec": "https://predictprotein.org/",
-		"Predator": "http://npsa-pbil.ibcp.fr/"
+		"Predator": "http://npsa-pbil.ibcp.fr/",
+		"NetSurf": "https://services.healthtech.dtu.dk/"
 	}
 
 	status = {}
@@ -117,7 +118,8 @@ siteDict = {
 	"SSPro": sspro,
 	"PHDpsi": phdpsi,
 	"PROFsec": profsec,
-	"Predator": predator
+	"Predator": predator,
+	"NetSurf": netsurf
 }
 
 siteLimit = {
@@ -130,7 +132,8 @@ siteLimit = {
 	"SSPro": 5,
 	"PHDpsi": 5,
 	"PROFsec": 5,
-	"Predator": 5
+	"Predator": 5,
+	"NetSurf": 5
 }
 
 
@@ -163,7 +166,8 @@ def lab_research():
 
 @app.route('/team')
 def lab_team():
-	return render_template('lab/team.html')
+	# TEMPORARILY UNAVAILABLE — restore by returning render_template('lab/team.html')
+	return render_template('lab/lab_base.html', _page_unavailable=True, _unavailable_page='Team')
 
 @app.route('/tools')
 def lab_tools():
@@ -175,7 +179,8 @@ def lab_tutorials():
 
 @app.route('/contact')
 def lab_contact():
-	return render_template('lab/contact.html')
+	# TEMPORARILY UNAVAILABLE — restore by returning render_template('lab/contact.html')
+	return render_template('lab/lab_base.html', _page_unavailable=True, _unavailable_page='Contact')
 
 
 # ---------------------------------------------------------------------------
@@ -196,7 +201,8 @@ def sspred_index(name=None):
 		"SSPro": 0,
 		"PHDpsi": 0,
 		"PROFsec": 0,
-		"Predator": 0
+		"Predator": 0,
+		"NetSurf": 0
 	}
 	for t in threading.enumerate():
 		if t.getName() in runningCounter.keys():
@@ -227,6 +233,7 @@ def sspred_index(name=None):
 			'PHDpsi':   form.PHDpsi.data,
 			'PROFsec':   form.PROFsec.data,
 			'Predator':   form.Predator.data,
+			'NetSurf':    form.NetSurf.data,
 			'submitbtn': 'Submit'
 			}
 
@@ -505,20 +512,58 @@ def protpipe_index():
 			reason="Pipeline dependencies not installed. Run: pip install biopython svgwrite"), 503
 
 	if request.method == 'POST':
+		# Build motif queries list from optional motif section
+		motif_queries = []
+		if 'run_motif_search' in request.form and _MOTIF_AVAILABLE:
+			# Preset motifs (multiple checkboxes named motif_presets)
+			selected_presets = request.form.getlist('motif_presets')
+			preset_map = {p['id']: p for p in _MOTIF_PRESETS} if _MOTIF_AVAILABLE else {}
+			for pid in selected_presets:
+				if pid in preset_map:
+					p = preset_map[pid]
+					motif_queries.append({'name': p['name'], 'pattern': p['pattern']})
+			# Custom motif
+			custom_pattern = request.form.get('motif_custom_pattern', '').strip()
+			custom_name    = request.form.get('motif_custom_name', '').strip() or 'Custom motif'
+			if custom_pattern:
+				motif_queries.append({'name': custom_name, 'pattern': custom_pattern})
+
+		try:
+			blast_max_hits = int(request.form.get('blast_max_hits', 10))
+			blast_max_hits = max(5, min(50, blast_max_hits))
+		except (ValueError, TypeError):
+			blast_max_hits = 10
+
+		blast_db = request.form.get('blast_database', 'swissprot')
+		if blast_db not in {'swissprot', 'refseq_protein', 'pdb', 'nr'}:
+			blast_db = 'swissprot'
+
 		input_data = {
-			'input_type':      request.form.get('input_type', 'raw_fasta'),
-			'sequence_input':  request.form.get('sequence_input', '').strip(),
-			'run_blast':       'run_blast'   in request.form,
-			'run_hmmer':       'run_hmmer'   in request.form,
-			'run_phobius':     'run_phobius' in request.form,
+			'input_type':        request.form.get('input_type', 'raw_fasta'),
+			'sequence_input':    request.form.get('sequence_input', '').strip(),
+			'run_blast':         'run_blast'         in request.form,
+			'run_hmmer':         'run_hmmer'         in request.form,
+			'run_phobius':       'run_phobius'       in request.form,
+			'run_signalp':       'run_signalp'       in request.form,
+			'run_cdd':           'run_cdd'           in request.form,
+			'run_scanprosite':   'run_scanprosite'   in request.form,
+			'run_smart':         'run_smart'         in request.form,
+			'run_interproscan':  'run_interproscan'  in request.form,
+			'run_coils':         'run_coils'         in request.form,
+			'blast_max_hits':    blast_max_hits,
+			'blast_database':    blast_db,
+			'motif_queries':     motif_queries,
 		}
 		if not input_data['sequence_input']:
-			return render_template('protpipe/index.html', error="Please enter a sequence or accession.")
+			return render_template('protpipe/index.html',
+				error="Please enter a sequence or accession.",
+				presets=_MOTIF_PRESETS if _MOTIF_AVAILABLE else [])
 
 		job_id = _pipe_submit(input_data)
 		return redirect(url_for('protpipe_results', job_id=job_id))
 
-	return render_template('protpipe/index.html', error=None)
+	return render_template('protpipe/index.html', error=None,
+		presets=_MOTIF_PRESETS if _MOTIF_AVAILABLE else [])
 
 
 @app.route('/tools/protpipe/results/<job_id>')
@@ -534,6 +579,27 @@ def protpipe_results(job_id):
 	summary = {}
 	if status_data.get('status') == 'complete':
 		summary = _pipe_summary(job_id)
+	elif status_data.get('status') == 'running':
+		# Load partial results so sequence info shows immediately while pipeline runs.
+		# Only reads files that exist — missing ones stay as {}.
+		from pipeline.utils.jobs import job_dir as _jd
+		import json as _json
+		jd = _jd(job_id)
+		def _read_partial(fname):
+			p = os.path.join(jd, fname)
+			if os.path.exists(p):
+				try:
+					with open(p) as f: return _json.load(f)
+				except Exception: pass
+			return {}
+		ret_data = _read_partial('retrieval.json')
+		prop_data = _read_partial('properties.json')
+		if ret_data or prop_data:
+			summary = {
+				'retrieval':  ret_data.get('data', ret_data) if ret_data else {},
+				'properties': prop_data.get('data', prop_data) if prop_data else {},
+				'_partial':   True,
+			}
 
 	return render_template('protpipe/results.html',
 		job_id=job_id,
@@ -550,13 +616,80 @@ def protpipe_status_api(job_id):
 
 @app.route('/tools/protpipe/figure/<job_id>')
 def protpipe_figure(job_id):
-	"""Serve the SVG domain figure for a completed job."""
+	"""
+	Serve the domain architecture figure for a completed job.
+	Checks for PNG (from PROSITE MyDomains) first, then SVG (internal fallback).
+	"""
 	import os
-	from pipeline.utils.jobs import job_dir
-	svg_path = os.path.join(job_dir(job_id), "domain_figure.svg")
-	if not os.path.exists(svg_path):
-		return ("Figure not available", 404)
-	return send_file(svg_path, mimetype="image/svg+xml")
+	from pipeline.utils.jobs import job_dir as _jdir
+	jd = _jdir(job_id)
+	png_path = os.path.join(jd, "domain_figure.png")
+	if os.path.exists(png_path):
+		return send_file(png_path, mimetype="image/png")
+	svg_path = os.path.join(jd, "domain_figure.svg")
+	if os.path.exists(svg_path):
+		return send_file(svg_path, mimetype="image/svg+xml")
+	return ("Figure not available", 404)
+
+
+@app.route('/tools/protpipe/annotations/<job_id>')
+def protpipe_annotations_json(job_id):
+	"""Return the merged annotations JSON for a completed job."""
+	if not _PIPELINE_AVAILABLE:
+		return jsonify({"error": "Pipeline not available"}), 503
+	from pipeline.utils.jobs import get_summary
+	summary = get_summary(job_id)
+	if not summary:
+		return jsonify({"error": "Job not found"}), 404
+	return jsonify({
+		"annotations": summary.get("annotations", []),
+		"annotation_summary": summary.get("annotation_summary", {}),
+	})
+
+
+@app.route('/tools/protpipe/figure/<job_id>/generate', methods=['POST'])
+def protpipe_generate_figure(job_id):
+	"""Regenerate the domain figure with user-selected annotations."""
+	if not _PIPELINE_AVAILABLE:
+		return jsonify({"error": "Pipeline not available"}), 503
+	from pipeline.utils.jobs import get_summary, job_dir as _job_dir
+	from pipeline.modules import mydomains
+	import time as _time
+
+	summary = get_summary(job_id)
+	if not summary:
+		return jsonify({"error": "Job not found"}), 404
+
+	# Combined pool: high-conf (index 0..N-1) + low-conf (index N..N+M-1)
+	hi_anns = summary.get("annotations", [])
+	lc_anns = summary.get("low_confidence_annotations", [])
+	combined = hi_anns + lc_anns
+	seq = (summary.get("retrieval") or {}).get("sequence", "")
+	if not seq:
+		return jsonify({"error": "Sequence not found in job summary"}), 400
+
+	try:
+		body = request.get_json(force=True) or {}
+		raw_indices = body.get("indices")
+		custom_commands = str(body.get("custom_commands") or "").strip()
+		if raw_indices is None:
+			selected = hi_anns   # default: only high-confidence
+		else:
+			selected = [combined[i] for i in raw_indices
+						if isinstance(i, int) and 0 <= i < len(combined)]
+	except Exception as e:
+		return jsonify({"error": f"Invalid request body: {e}"}), 400
+
+	jd = _job_dir(job_id)
+	try:
+		fig_result = mydomains.run(seq, selected, jd, extra_commands=custom_commands)
+		t = int(_time.time())
+		if fig_result.get("status") == "ok":
+			return jsonify({"ok": True, "url": f"/tools/protpipe/figure/{job_id}?t={t}"})
+		else:
+			return jsonify({"ok": False, "error": fig_result.get("error", "Figure generation failed")})
+	except Exception as e:
+		return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @app.route('/tools/protpipe/archive')
@@ -582,20 +715,36 @@ def protpipe_download_json(job_id):
 	)
 
 
-@app.route('/tools/protpipe/download/<job_id>/svg')
-def protpipe_download_svg(job_id):
+@app.route('/tools/protpipe/download/<job_id>/figure')
+def protpipe_download_figure(job_id):
+	"""Download domain figure — PNG preferred (MyDomains), SVG fallback."""
 	if not _PIPELINE_AVAILABLE:
 		return ("Pipeline not available", 503)
 	from pipeline.utils.jobs import job_dir as _job_dir
-	svg_path = os.path.join(_job_dir(job_id), "domain_figure.svg")
-	if not os.path.exists(svg_path):
-		return ("Figure not available", 404)
-	return send_file(
-		svg_path,
-		mimetype="image/svg+xml",
-		as_attachment=True,
-		attachment_filename=f"protpipe_{job_id}_figure.svg",
-	)
+	jd = _job_dir(job_id)
+	png_path = os.path.join(jd, "domain_figure.png")
+	if os.path.exists(png_path):
+		return send_file(
+			png_path,
+			mimetype="image/png",
+			as_attachment=True,
+			attachment_filename=f"protpipe_{job_id}_figure.png",
+		)
+	svg_path = os.path.join(jd, "domain_figure.svg")
+	if os.path.exists(svg_path):
+		return send_file(
+			svg_path,
+			mimetype="image/svg+xml",
+			as_attachment=True,
+			attachment_filename=f"protpipe_{job_id}_figure.svg",
+		)
+	return ("Figure not available", 404)
+
+
+# Keep old SVG-only route for backward compat
+@app.route('/tools/protpipe/download/<job_id>/svg')
+def protpipe_download_svg(job_id):
+	return protpipe_download_figure(job_id)
 
 
 @app.route('/tools/protpipe/download/<job_id>/txt')
@@ -686,6 +835,97 @@ def _make_text_report(job_id, summary):
 	lines.append("Generated by ProtPipe — Singh Lab, Brooklyn College")
 	lines.append("=" * 60)
 	return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Motif Search — standalone tool + API endpoint
+# ---------------------------------------------------------------------------
+
+try:
+	from pipeline.modules.motif_search import (
+		search as _motif_search,
+		validate_sequence as _motif_validate_seq,
+		parse_advanced as _motif_parse,
+		segments_to_prosite as _motif_to_prosite,
+		segments_to_human as _motif_to_human,
+		PRESETS as _MOTIF_PRESETS,
+	)
+	_MOTIF_AVAILABLE = True
+except ImportError as _me:
+	_MOTIF_AVAILABLE = False
+	print(f"[motif] motif_search not available: {_me}")
+
+
+@app.route('/tools/motif', methods=['GET'])
+def motif_index():
+	"""Standalone motif search tool."""
+	return render_template('motif/index.html', presets=_MOTIF_PRESETS if _MOTIF_AVAILABLE else [])
+
+
+@app.route('/tools/motif/search', methods=['POST'])
+def motif_search_api():
+	"""
+	AJAX endpoint for standalone motif search.
+
+	Accepts JSON:
+	  {
+	    "sequence": str,
+	    "pattern":  str,          PROSITE/regex syntax (optional if segments given)
+	    "segments": [...],        visual builder output (optional)
+	    "name":     str           label for this query (optional)
+	  }
+
+	Returns JSON:
+	  {
+	    "ok":        bool,
+	    "hits":      [{start, end, match}, ...],
+	    "hit_count": int,
+	    "regex":     str,
+	    "prosite":   str,
+	    "human":     str,
+	    "error":     str
+	  }
+	"""
+	if not _MOTIF_AVAILABLE:
+		return jsonify({"ok": False, "error": "Motif search module not available."}), 503
+
+	body = request.get_json(force=True) or {}
+	raw_seq  = body.get("sequence", "")
+	pattern  = body.get("pattern", "")
+	segments = body.get("segments")
+
+	# Validate sequence
+	seq, seq_err = _motif_validate_seq(raw_seq)
+	if seq_err:
+		return jsonify({"ok": False, "error": seq_err, "hits": [], "hit_count": 0})
+
+	# Determine the pattern to use
+	if segments:
+		result = _motif_search(seq, segments)
+		# Build human / prosite representations for display
+		from pipeline.modules.motif_search import segments_to_prosite, segments_to_human
+		prosite_str = segments_to_prosite(segments)
+		human_str   = segments_to_human(segments)
+	elif pattern:
+		result      = _motif_search(seq, pattern)
+		segs, _     = _motif_parse(pattern)
+		prosite_str = _motif_to_prosite(segs)
+		human_str   = _motif_to_human(segs)
+	else:
+		return jsonify({"ok": False, "error": "No motif pattern provided.", "hits": [], "hit_count": 0})
+
+	if result["status"] != "ok":
+		return jsonify({"ok": False, "error": result["error"], "hits": [], "hit_count": 0})
+
+	return jsonify({
+		"ok":        True,
+		"hits":      result["hits"],
+		"hit_count": result["hit_count"],
+		"regex":     result["regex_used"],
+		"prosite":   prosite_str,
+		"human":     human_str,
+		"error":     "",
+	})
 
 
 if __name__ == "__main__":

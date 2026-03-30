@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Singh Lab{% endblock %} — Bioinformatics Lab, Brooklyn College</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/lab.css') }}?v=3">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/lab.css') }}?v=4">
 </head>
 <body>
 
@@ -30,6 +30,11 @@
               ProtPipe
               <span class="dd-badge badge-beta">Beta</span>
             </a>
+            <a href="/tools/motif">
+              <span class="dd-icon" style="background:#fffbeb;color:#d97706;">MS</span>
+              Motif Search
+              <span class="dd-badge badge-beta">Beta</span>
+            </a>
             <hr>
             <a href="/tools" style="font-size:0.82rem;color:var(--text-light);">All Tools →</a>
           </div>
@@ -42,7 +47,18 @@
     </div>
   </header>
 
+  {% if _page_unavailable %}
+  <main style="min-height:60vh;display:flex;align-items:center;justify-content:center;">
+    <div style="text-align:center;padding:60px 24px;">
+      <div style="font-size:2.5rem;margin-bottom:16px;">🔧</div>
+      <h1 style="font-size:1.5rem;font-weight:700;color:var(--text);margin-bottom:10px;">{{ _unavailable_page }} — Temporarily Unavailable</h1>
+      <p style="color:var(--text-secondary);font-size:0.95rem;max-width:380px;margin:0 auto 28px;">This page is currently under maintenance. Please check back soon.</p>
+      <a href="/" style="display:inline-block;padding:9px 22px;background:var(--accent);color:#fff;border-radius:7px;font-size:0.9rem;font-weight:600;text-decoration:none;">← Back to Home</a>
+    </div>
+  </main>
+  {% else %}
   {% block content %}{% endblock %}
+  {% endif %}
 
   <footer class="lab-footer">
     <div class="lab-footer-inner">

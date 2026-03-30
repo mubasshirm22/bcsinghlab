@@ -24,6 +24,7 @@ class SubmissionForm(FlaskForm):
 	PHDpsi = BooleanField('PHDpsi', [validators.Optional()], default=False)
 	PROFsec = BooleanField('PROFsec', [validators.Optional()], default=False)
 	Predator = BooleanField('Predator', [validators.Optional()], default=False)
+	NetSurf  = BooleanField('NetSurf',  [validators.Optional()], default=False)
 	
 	structureId = StringField('Structure Id:',[ 
 		validators.Optional(),
@@ -46,7 +47,7 @@ class SubmissionForm(FlaskForm):
 		validated = True
 		
 		#Check if at least one site selected
-		if not self.JPred.data and not self.PSI.data and not self.PSS.data and not self.RaptorX.data and not self.Sable.data and not self.Yaspin.data and not self.SSPro.data and not self.PHDpsi.data and not self.PROFsec.data and not self.Predator.data:
+		if not self.JPred.data and not self.PSI.data and not self.PSS.data and not self.RaptorX.data and not self.Sable.data and not self.Yaspin.data and not self.SSPro.data and not self.PHDpsi.data and not self.PROFsec.data and not self.Predator.data and not self.NetSurf.data:
 			self.JPred.errors.append('At least one site must be selected.')
 			validated = False
 

@@ -62,8 +62,12 @@
 						<strong style="font-size: 13px;">Predator:</strong> 
 						<span class="status-badge {% if serviceStatus.Predator == 'UP' %}up{% else %}down{% endif %}" style="font-size: 11px; padding: 2px 8px;">{{serviceStatus.Predator}}</span>
 					</div>
+					<div class="status-item" style="padding: 8px 0;">
+						<strong style="font-size: 13px;">NetSurf:</strong>
+						<span class="status-badge {% if serviceStatus.NetSurf == 'UP' %}up{% else %}down{% endif %}" style="font-size: 11px; padding: 2px 8px;">{{serviceStatus.NetSurf}}</span>
+					</div>
 					<div class="status-item" style="padding: 8px 0; border-bottom: none;">
-						<strong style="font-size: 13px;">Known PDB (STRIDE):</strong> 
+						<strong style="font-size: 13px;">Known PDB (STRIDE):</strong>
 						<span class="status-badge {% if serviceStatus.STRIDE == 'UP' %}up{% else %}down{% endif %}" style="font-size: 11px; padding: 2px 8px;">{{serviceStatus.STRIDE}}</span>
 					</div>
 				</div>
@@ -79,6 +83,7 @@
 					<div style="padding: 6px 0;">PHDpsi: <strong style="color: var(--primary);">{{counter.PHDpsi}}</strong> <span style="color: var(--text-light);">(MAX 5)</span></div>
 					<div style="padding: 6px 0;">PROFsec: <strong style="color: var(--primary);">{{counter.PROFsec}}</strong> <span style="color: var(--text-light);">(MAX 5)</span></div>
 					<div style="padding: 6px 0;">Predator: <strong style="color: var(--primary);">{{counter.Predator}}</strong> <span style="color: var(--text-light);">(MAX 5)</span></div>
+					<div style="padding: 6px 0;">NetSurf: <strong style="color: var(--primary);">{{counter.NetSurf}}</strong> <span style="color: var(--text-light);">(MAX 5)</span></div>
 				</div>
 			</div>
 		</aside>
@@ -167,6 +172,11 @@
 								{{ form.Predator }}
 								{{ form.Predator.label }}
 								<div class="tooltiptext">Maximum Sequence Length: 4000</div>
+							</div>
+							<div class="service-option sitetooltip">
+								{{ form.NetSurf }}
+								{{ form.NetSurf.label }}
+								<div class="tooltiptext">NetSurfP-2.0 via DTU Health Tech — per-residue secondary structure (H/E/C). Slow: ~25 min.</div>
 							</div>
 						</div>
 					</div>

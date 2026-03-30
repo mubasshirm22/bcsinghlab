@@ -46,7 +46,7 @@
           </label>
           <label class="pipe-input-type-label">
             <input type="radio" name="input_type" value="ncbi" id="rt-ncbi" onchange="onInputTypeChange()">
-            NCBI protein accession
+            NCBI accession
           </label>
         </div>
         <p id="input-hint" style="font-size:0.8rem;color:var(--text-light);margin-top:10px;margin-bottom:0;">
@@ -67,6 +67,7 @@
           <button type="button" class="pipe-btn-ghost" onclick="clearInput()">Clear</button>
           <button type="button" class="pipe-btn-ghost" onclick="loadExample('uniprot','P04637')">Example: P04637 (TP53, UniProt)</button>
           <button type="button" class="pipe-btn-ghost" onclick="loadExample('uniprot','P00533')">Example: P00533 (EGFR, UniProt)</button>
+          <button type="button" class="pipe-btn-ghost" onclick="loadExample('ncbi','NP_000535.3')">Example: NP_000535.3 (TP53, NCBI)</button>
           <button type="button" class="pipe-btn-ghost" onclick="loadExample('raw_fasta', exampleFasta)">Example: FASTA paste</button>
         </div>
         <!-- File upload row -->
@@ -89,9 +90,25 @@
             <input type="checkbox" name="run_blast" checked>
             <div>
               <div class="opt-title">BLAST Homology Search</div>
-              <div class="opt-desc">blastp vs SwissProt via NCBI remote API. Returns top 10 hits with E-value, identity, and coverage.</div>
+              <div class="opt-desc">blastp vs SwissProt (NCBI). Finds homologous proteins — shows protein name, organism, percent identity, coverage, and E-value.</div>
               <span class="opt-status opt-status-live">Live</span>
               <span style="font-size:0.72rem;color:var(--text-light);margin-left:6px;">~2–10 min</span>
+              <div style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
+                <label style="font-size:0.75rem;color:var(--text-secondary);font-weight:500;cursor:default;">Database:</label>
+                <select name="blast_database" style="font-size:0.78rem;padding:2px 8px;border:1px solid var(--border);border-radius:5px;background:var(--bg);color:var(--text);cursor:pointer;" onclick="event.stopPropagation()">
+                  <option value="swissprot" selected>SwissProt (curated, fast)</option>
+                  <option value="refseq_protein">RefSeq Protein (comprehensive)</option>
+                  <option value="pdb">PDB (structures only)</option>
+                  <option value="nr">nr (all — slow, ~10–30 min)</option>
+                </select>
+                <label style="font-size:0.75rem;color:var(--text-secondary);font-weight:500;cursor:default;margin-left:6px;">Max hits:</label>
+                <select name="blast_max_hits" style="font-size:0.78rem;padding:2px 8px;border:1px solid var(--border);border-radius:5px;background:var(--bg);color:var(--text);cursor:pointer;" onclick="event.stopPropagation()">
+                  <option value="5">5</option>
+                  <option value="10" selected>10 (default)</option>
+                  <option value="20">20</option>
+                  <option value="50">50</option>
+                </select>
+              </div>
             </div>
           </label>
 
@@ -99,28 +116,134 @@
             <input type="checkbox" name="run_hmmer" checked>
             <div>
               <div class="opt-title">Pfam Domain Annotation</div>
-              <div class="opt-desc">hmmscan vs Pfam via EBI HMMER API. Returns domain boundaries, accessions, and E-values.</div>
-              <span class="opt-status opt-status-beta">Endpoint verification pending</span>
+              <div class="opt-desc">hmmscan vs Pfam via EBI HMMER API. Identifies conserved domain families with boundaries and E-values.</div>
+              <span class="opt-status opt-status-live">Live</span>
             </div>
           </label>
 
           <label class="pipe-analysis-option">
             <input type="checkbox" name="run_phobius" checked>
             <div>
-              <div class="opt-title">Signal Peptide &amp; TM Topology</div>
-              <div class="opt-desc">Phobius via EBI Job Dispatcher. Detects signal peptides and transmembrane helices in a single run.</div>
-              <span class="opt-status opt-status-beta">Endpoint verification pending</span>
+              <div class="opt-title">Signal Peptide &amp; TM Topology <span style="font-weight:400;color:var(--text-light);">(Phobius)</span></div>
+              <div class="opt-desc">Phobius via EBI. Detects signal peptides AND transmembrane helices simultaneously. Returns exact cleavage site and TM helix residue ranges.</div>
+              <span class="opt-status opt-status-live">Live</span>
+            </div>
+          </label>
+
+          <label class="pipe-analysis-option">
+            <input type="checkbox" name="run_signalp">
+            <div>
+              <div class="opt-title">Signal Peptide <span style="font-weight:400;color:var(--text-light);">(SignalP)</span></div>
+              <div class="opt-desc">SignalP-4.1 via EBI. Independent signal peptide cross-validation alongside Phobius. Returns SP residue range and D-score confidence. <em style="color:var(--text-light);">Currently unavailable — EBI endpoint offline.</em></div>
+              <span class="opt-status opt-status-beta">Unavailable</span>
+            </div>
+          </label>
+
+          <label class="pipe-analysis-option">
+            <input type="checkbox" name="run_cdd" checked>
+            <div>
+              <div class="opt-title">CDD Conserved Domains</div>
+              <div class="opt-desc">NCBI Batch Web CD-Search. Searches the Conserved Domain Database for structural/functional domains.</div>
+              <span class="opt-status opt-status-live">Live</span>
+              <span style="font-size:0.72rem;color:var(--text-light);margin-left:6px;">~1–2 min</span>
+            </div>
+          </label>
+
+          <label class="pipe-analysis-option">
+            <input type="checkbox" name="run_interproscan">
+            <div>
+              <div class="opt-title">InterProScan</div>
+              <div class="opt-desc">EBI InterProScan — searches Pfam, SMART, CDD, PRINTS, ProSite, HAMAP, Panther, and more. Opt-in only — adds significant time.</div>
+              <span class="opt-status opt-status-live">Live</span>
+              <span style="font-size:0.72rem;color:var(--text-light);margin-left:6px;">~5–10 min (slow)</span>
+            </div>
+          </label>
+
+          <label class="pipe-analysis-option">
+            <input type="checkbox" name="run_scanprosite" checked>
+            <div>
+              <div class="opt-title">ScanProsite</div>
+              <div class="opt-desc">ExPASy ScanProsite — scans against PROSITE patterns and profiles. Also detects active sites, binding sites, disulfide bridges, and metal-binding residues.</div>
+              <span class="opt-status opt-status-live">Live</span>
+            </div>
+          </label>
+
+          <label class="pipe-analysis-option">
+            <input type="checkbox" name="run_smart" checked>
+            <div>
+              <div class="opt-title">SMART Domain Architecture</div>
+              <div class="opt-desc">SMART web adapter — domain architecture analysis with focus on signaling and extracellular domains. Best-effort HTML parsing.</div>
+              <span class="opt-status opt-status-beta">Best-effort</span>
+            </div>
+          </label>
+
+          <label class="pipe-analysis-option">
+            <input type="checkbox" name="run_coils" checked>
+            <div>
+              <div class="opt-title">Coiled-Coil Prediction</div>
+              <div class="opt-desc">LUPAS via NPSA-PRABI (Lyon). Predicts coiled-coil regions using the MTIDK matrix. Identifies heptad-repeat regions likely to form coiled-coil structures.</div>
+              <span class="opt-status opt-status-live">Live</span>
+              <span style="font-size:0.72rem;color:var(--text-light);margin-left:6px;">~5–10 sec</span>
             </div>
           </label>
 
         </div>
 
-        <!-- Endpoint note -->
         <div class="pipe-endpoint-note" style="margin-top:16px;">
-          <strong>Note on Beta modules</strong>
-          HMMER (Pfam) and Phobius are connected to EBI web services with medium-high confidence. If either endpoint returns an error, the results page will display a clear diagnostic message. BLAST is fully confirmed and always runs.
+          <strong>All annotation tools run in parallel</strong> with a shared 10-minute timeout. BLAST runs concurrently — if BLAST completes later, its results are added at the end. If any single tool fails or times out, the rest continue and results are shown.
         </div>
       </div>
+
+      <!-- ── 4. Optional motif search ───────────────────────────── -->
+      {% if presets %}
+      <div class="pipe-form-section pipe-motif-section">
+        <div class="pipe-form-section-title">4 — Motif Search <span style="font-size:0.7rem;font-weight:400;color:var(--text-light);margin-left:6px;">optional</span></div>
+
+        <label class="pipe-motif-toggle">
+          <input type="checkbox" name="run_motif_search" id="run-motif-chk" onchange="toggleMotifBody(this)">
+          Search for sequence motifs in the submitted protein
+        </label>
+
+        <div class="pipe-motif-body" id="pipe-motif-body">
+          <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:12px;">
+            Select preset motifs to search for, or enter a custom pattern below.
+            Results appear in the <strong>Motifs</strong> tab on the results page.
+          </p>
+
+          <div class="pipe-motif-preset-grid">
+            {% for p in presets %}
+            <label class="pipe-motif-preset-item">
+              <input type="checkbox" name="motif_presets" value="{{ p.id }}">
+              <div>
+                <span class="pipe-motif-preset-name">{{ p.name }}</span>
+                <span class="pipe-motif-preset-desc">{{ p.desc }}</span>
+              </div>
+            </label>
+            {% endfor %}
+          </div>
+
+          <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px;">
+            <div style="font-size:0.78rem;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">Custom motif</div>
+            <div class="pipe-motif-custom-row">
+              <input type="text" name="motif_custom_pattern" id="motif-custom-pattern"
+                     placeholder="e.g. H-E-x(2)-H  or  HE..H  or  C-x(2,4)-C"
+                     autocomplete="off" autocorrect="off" spellcheck="false"
+                     oninput="motifCustomPreview()">
+              <input type="text" name="motif_custom_name" id="motif-custom-name"
+                     placeholder="Label (optional)" style="max-width:200px;">
+            </div>
+            <div id="motif-custom-preview-wrap" style="display:none;margin-top:6px;" class="motif-preview-bar">
+              <span class="motif-preview-label">Pattern</span>
+              <span class="motif-preview-value" id="motif-custom-prosite-preview">—</span>
+            </div>
+            <div style="margin-top:8px;font-size:0.74rem;color:var(--text-light);">
+              PROSITE syntax: <code>H-E-x(2)-H</code> · Regex syntax: <code>HE..H</code> or <code>HE.{20,80}E</code> ·
+              <a href="/tools/motif" target="_blank">Open full motif tool ↗</a>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
 
       <!-- ── Submit ─────────────────────────────────────────────── -->
       <div style="display:flex;justify-content:flex-end;gap:12px;">
@@ -141,7 +264,10 @@
           <li>Raw amino acid string (single-letter codes)</li>
           <li>Single FASTA record (with or without header)</li>
           <li>UniProt accession (e.g. <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;">P04637</code>)</li>
-          <li>NCBI protein accession (e.g. <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;">NP_000535.3</code>)</li>
+          <li>NCBI protein accession (e.g. <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;">NP_000535.3</code>, <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;">XP_</code>, <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;">WP_</code>)</li>
+          <li>NCBI mRNA / transcript (e.g. <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;">NM_005228.5</code>, <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;">XM_</code>) → auto-resolved</li>
+          <li>WGS contig (e.g. <code style="background:#f1f5f9;padding:1px 5px;border-radius:3px;">GAJC01020720.1</code>) → auto-resolved</li>
+          <li>NCBI gene ID (numeric) → auto-resolved</li>
           <li>Uploaded .fasta file</li>
         </ul>
       </div>
@@ -182,12 +308,12 @@ MEEPQSDPSVEPPLSQETFSDLWKLLPENNVLSPLPSQAMDDLMLSPDDIEQWFTEDPGPDEAPRMPEAAPPVAPAPAAP
 const hints = {
   raw_fasta: 'Accepts raw amino acid string (40–5000 residues) or a single FASTA record. Spaces and newlines are ignored.',
   uniprot:   'Enter a UniProt accession, e.g. P04637 (TP53), Q9Y2H9, or A0A000ABC1.',
-  ncbi:      'Enter an NCBI protein accession, e.g. NP_000535.3 or XP_001234567.1.',
+  ncbi:      'Enter any NCBI accession. Protein (NP_, XP_, WP_) → fetched directly. mRNA/transcript (NM_, XM_), WGS contig (e.g. GAJC01020720.1), or gene ID (numeric) → auto-resolved to linked protein records via NCBI elink. Top candidate is analyzed; all candidates shown in Resolved Proteins tab.',
 };
 const placeholders = {
   raw_fasta: 'Paste a FASTA sequence or raw amino acid string here…',
   uniprot:   'Enter UniProt accession, e.g. P04637',
-  ncbi:      'Enter NCBI accession, e.g. NP_000535.3',
+  ncbi:      'Enter NCBI accession, e.g. NP_000535.3  XP_001234567.1  NM_005228.5  GAJC01020720.1  or a numeric gene ID',
 };
 
 function onInputTypeChange() {
@@ -283,6 +409,23 @@ function validateForm() {
     }
   }
   return true;
+}
+
+// ── Motif section toggle ──────────────────────────────────────
+function toggleMotifBody(chk) {
+  const body = document.getElementById('pipe-motif-body');
+  if (body) body.classList.toggle('open', chk.checked);
+}
+
+// Live preview of custom motif pattern in ProtPipe form
+function motifCustomPreview() {
+  const val = document.getElementById('motif-custom-pattern')?.value.trim();
+  const wrap = document.getElementById('motif-custom-preview-wrap');
+  const prev = document.getElementById('motif-custom-prosite-preview');
+  if (!val || !wrap || !prev) return;
+  // Simple client-side parse for preview (full parse happens server-side)
+  wrap.style.display = '';
+  prev.textContent = val;  // show raw input as typed — server canonicalises it
 }
 </script>
 {% endblock %}

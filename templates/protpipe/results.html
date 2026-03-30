@@ -49,14 +49,24 @@
         {% endif %}
       </div>
       {% else %}
+      <div class="pipe-progress-track">
+        <div class="pipe-progress-fill" id="progress-fill" style="width:0%;"></div>
+      </div>
       <div class="pipe-progress-steps" id="progress-steps">
         {% set step_defs = [
-          ('retrieval',  'Sequence retrieval',              'Fetches sequence from UniProt / NCBI or parses your FASTA'),
-          ('properties', 'Sequence properties',             'MW, pI, GRAVY, stability — instant local calculation'),
-          ('blast',      'BLAST homology search',           'blastp vs SwissProt via NCBI — typically 2–10 min'),
-          ('hmmer',      'Pfam domain annotation (HMMER)',  'hmmscan via EBI HMMER API — typically ~1 min'),
-          ('phobius',    'Signal peptide & TM (Phobius)',   'Phobius via EBI Job Dispatcher — typically ~30 sec'),
-          ('figures',    'Domain architecture figure',      'SVG generated from HMMER + Phobius results'),
+          ('retrieval',     'Sequence retrieval',                'Fetches sequence from UniProt / NCBI or parses your FASTA'),
+          ('properties',    'Sequence properties',               'MW, pI, GRAVY, stability — instant local calculation'),
+          ('blast',         'BLAST homology search',             'blastp vs SwissProt via NCBI — typically 2–10 min'),
+          ('hmmer',         'Pfam domain annotation (HMMER)',    'hmmscan via EBI HMMER API — typically ~1 min'),
+          ('phobius',       'Signal peptide & TM (Phobius)',     'Phobius via EBI Job Dispatcher — ~30 sec'),
+          ('signalp',       'Signal peptide (SignalP)',           'SignalP-4.1 via EBI — independent SP cross-validation, ~30 sec'),
+          ('cdd',           'CDD conserved domains (NCBI)',      'Batch Web CD-Search — typically ~1–2 min'),
+          ('scanprosite',   'ScanProsite patterns & sites',      'ExPASy ScanProsite — motifs, active sites, binding sites'),
+          ('smart',         'SMART domain architecture',         'SMART web adapter — best-effort HTML parsing'),
+          ('interproscan',  'InterProScan (integrative)',        'EBI InterProScan — slowest, most comprehensive (~5–8 min)'),
+          ('coils',         'Coiled-coil prediction (LUPAS)',    'NPSA-PRABI LUPAS — heptad-repeat coiled-coil regions (~5–10 sec)'),
+          ('annotations',   'Merge & deduplicate annotations',   'Combines all sources into one clean annotation set'),
+          ('figures',       'Domain architecture figure',        'PROSITE MyDomains figure (or SVG fallback)'),
         ] %}
         {% for key, label, desc in step_defs %}
         {% set s = modules.get(key, 'pending') %}
@@ -75,6 +85,45 @@
       {% endif %}
     </div>
 
+    <!-- ── Partial results card — shown while pipeline is still running ── -->
+    {% if not is_complete and not is_error and summary.get('retrieval') %}
+    {% set _pret   = summary.get('retrieval', {}) %}
+    {% set _pprops = summary.get('properties', {}) %}
+    <div class="pipe-result-card" style="margin-top:20px;border-left:3px solid #2563eb;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+        <div class="pipe-result-card-title" style="margin:0;">Sequence Retrieved</div>
+        <span style="font-size:0.75rem;background:#eff6ff;color:#2563eb;padding:2px 9px;border-radius:999px;font-weight:600;">Analysis in progress…</span>
+      </div>
+      <div style="display:flex;gap:20px;flex-wrap:wrap;">
+        {% if _pret.get('header') or _pret.get('accession') %}
+        <div>
+          <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:3px;">Identifier</div>
+          <div style="font-size:0.9rem;font-weight:600;">{{ _pret.get('header') or _pret.get('accession','—') }}</div>
+        </div>
+        {% endif %}
+        {% if _pprops.get('length') %}
+        <div>
+          <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:3px;">Length</div>
+          <div style="font-size:0.9rem;font-weight:600;">{{ _pprops.length }} aa</div>
+        </div>
+        {% endif %}
+        {% if _pprops.get('mw') %}
+        <div>
+          <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:3px;">Mol. Weight</div>
+          <div style="font-size:0.9rem;font-weight:600;">{{ "%.1f"|format(_pprops.mw / 1000) }} kDa</div>
+        </div>
+        {% endif %}
+        {% if _pprops.get('pi') %}
+        <div>
+          <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:3px;">pI</div>
+          <div style="font-size:0.9rem;font-weight:600;">{{ "%.2f"|format(_pprops.pi) }}</div>
+        </div>
+        {% endif %}
+      </div>
+      <div style="margin-top:10px;font-size:0.8rem;color:var(--text-light);">Full results will appear automatically when analysis completes.</div>
+    </div>
+    {% endif %}
+
     <!-- ── Results section (only shown when complete) ── -->
     {% if is_complete and summary %}
     {% set ret   = summary.get('retrieval', {}) %}
@@ -83,8 +132,22 @@
     {% set blast_hits  = blast_data.get('hits', []) %}
     {% set hmmer_data  = summary.get('hmmer', {}) %}
     {% set domains     = hmmer_data.get('domains', []) %}
-    {% set phob        = summary.get('phobius', {}) %}
-    {% set errs        = summary.get('module_errors', {}) %}
+    {% set phob          = summary.get('phobius', {}) %}
+    {% set sigp          = summary.get('signalp', {}) %}
+    {% set errs          = summary.get('module_errors', {}) %}
+    {% set is_partial    = summary.get('_partial', false) %}
+    {% set annotations = summary.get('annotations', []) %}
+    {% set low_conf    = summary.get('low_confidence_annotations', []) %}
+    {% set raw_anns    = summary.get('raw_annotations', []) %}
+    {% set ann_debug   = summary.get('annotation_debug', {}) %}
+    {% set ann_summary = summary.get('annotation_summary', {}) %}
+    {% set ann_domains = annotations | selectattr('feature_type', 'in', ['domain','family','repeat','motif','coiled_coil','low_complexity','helix','strand']) | list %}
+    {% set ann_sites   = annotations | selectattr('feature_type', 'in', ['active_site','binding_site','metal_binding','disulfide','site']) | list %}
+    {% set ann_sp      = annotations | selectattr('feature_type', 'equalto', 'signal_peptide') | list %}
+    {% set ann_tm      = annotations | selectattr('feature_type', 'equalto', 'transmembrane') | list %}
+    {# Combined pool for figure checkboxes: hi-conf (0..N-1) + low-conf (N..N+M-1) #}
+    {% set n_hi = annotations | length %}
+    {% set n_lc = low_conf | length %}
 
     <!-- Download bar -->
     <div class="pipe-download-bar">
@@ -92,7 +155,7 @@
       <a class="pipe-dl-btn" href="/tools/protpipe/download/{{ job_id }}/json">JSON report</a>
       <a class="pipe-dl-btn" href="/tools/protpipe/download/{{ job_id }}/txt">Text summary</a>
       {% if summary.get('figure_ok') %}
-      <a class="pipe-dl-btn" href="/tools/protpipe/download/{{ job_id }}/svg">SVG figure</a>
+      <a class="pipe-dl-btn" href="/tools/protpipe/download/{{ job_id }}/figure">Domain figure</a>
       {% endif %}
       <button class="pipe-copy-btn" onclick="copyReport()" style="margin-left:auto;" id="copy-btn">Copy report</button>
     </div>
@@ -108,23 +171,53 @@
       </button>
       <button class="pipe-tab-btn" id="tab-btn-homology" onclick="showTab('homology', this)">
         Homology
-        {% if blast_hits %}<span class="tab-check">✓</span>{% elif errs.blast %}<span class="tab-warn">!</span>{% endif %}
+        {% if blast_hits %}<span class="tab-check">✓</span>{% elif errs.get('blast') %}<span class="tab-warn">!</span>{% endif %}
+      </button>
+      {% if ret.get('resolved_proteins') %}
+      <button class="pipe-tab-btn" id="tab-btn-resolved" onclick="showTab('resolved', this)">
+        Resolved Proteins
+        <span class="tab-check">{{ ret.resolved_proteins | length }}</span>
+      </button>
+      {% endif %}
+      <button class="pipe-tab-btn" onclick="showTab('annotations', this)">
+        Annotations
+        {% if annotations %}<span class="tab-check">✓</span>{% endif %}
       </button>
       <button class="pipe-tab-btn" onclick="showTab('domains', this)">
-        Domains
-        {% if domains %}<span class="tab-check">✓</span>{% elif errs.hmmer %}<span class="tab-warn">!</span>{% endif %}
+        Pfam/HMMER
+        {% if domains %}<span class="tab-check">✓</span>{% elif errs.get('hmmer') %}<span class="tab-warn">!</span>{% endif %}
       </button>
       <button class="pipe-tab-btn" onclick="showTab('topology', this)">
         Topology
-        {% if phob %}<span class="tab-check">✓</span>{% elif errs.phobius %}<span class="tab-warn">!</span>{% endif %}
+        {% if phob %}<span class="tab-check">✓</span>{% elif errs.get('phobius') %}<span class="tab-warn">!</span>{% endif %}
       </button>
-      {% if summary.get('figure_ok') %}
-      <button class="pipe-tab-btn" id="tab-btn-figure" onclick="showTab('figure', this)">Figure</button>
+      {% if summary.get('motif_results') %}
+      <button class="pipe-tab-btn" id="tab-btn-motifs" onclick="showTab('motifs', this)">
+        Motifs
+        <span class="tab-check">{{ summary.motif_results | sum(attribute='hit_count') }}</span>
+      </button>
       {% endif %}
     </div>
 
     <!-- ────────────── TAB: Overview ────────────── -->
     <div id="tab-overview" class="pipe-tab-panel active">
+
+      <!-- Accession resolution notice (shown if user submitted a gene/mRNA accession) -->
+      {% if ret.get('resolved_from') %}
+      <div class="pipe-result-card" style="background:#eff6ff;border-color:#bfdbfe;margin-bottom:16px;">
+        <div style="display:flex;gap:10px;align-items:flex-start;">
+          <span style="font-size:1.1rem;line-height:1;">🔗</span>
+          <div>
+            <div style="font-size:0.82rem;font-weight:700;color:#1e3a8a;margin-bottom:4px;">Accession Resolved</div>
+            <div style="font-size:0.85rem;color:#1e40af;">
+              You submitted: <code style="background:#dbeafe;padding:1px 6px;border-radius:3px;">{{ ret.resolved_from }}</code>
+              &rarr; analyzed as: <code style="background:#dbeafe;padding:1px 6px;border-radius:3px;font-weight:700;">{{ ret.resolved_acc }}</code>
+            </div>
+            <div style="font-size:0.78rem;color:#3b82f6;margin-top:3px;">{{ ret.resolved_how }}</div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
 
       <!-- Quick summary stats -->
       <div class="pipe-result-card">
@@ -146,9 +239,10 @@
           <div class="pipe-stat"><div class="pipe-stat-label">Instability</div><div class="pipe-stat-value">{{ props.instability_index }} {% if props.get('is_stable') %}<span style="font-size:.7rem;color:#15803d;">(Stable)</span>{% elif props.get('is_stable') == False %}<span style="font-size:.7rem;color:#dc2626;">(Unstable)</span>{% endif %}</div></div>
           {% endif %}
           <div class="pipe-stat"><div class="pipe-stat-label">BLAST hits</div><div class="pipe-stat-value">{{ blast_hits | length }}</div></div>
-          <div class="pipe-stat"><div class="pipe-stat-label">Pfam domains</div><div class="pipe-stat-value">{{ domains | length }}</div></div>
-          <div class="pipe-stat"><div class="pipe-stat-label">TM helices</div><div class="pipe-stat-value">{{ phob.get('tm_count', '—') }}</div></div>
-          <div class="pipe-stat"><div class="pipe-stat-label">Signal peptide</div><div class="pipe-stat-value">{% if phob.get('has_signal_peptide') %}Yes{% elif phob.get('has_signal_peptide') == False %}No{% else %}—{% endif %}</div></div>
+          <div class="pipe-stat"><div class="pipe-stat-label">Domains / motifs</div><div class="pipe-stat-value">{{ ann_domains | length or domains | length }}</div></div>
+          <div class="pipe-stat"><div class="pipe-stat-label">Functional sites</div><div class="pipe-stat-value">{{ ann_sites | length }}</div></div>
+          <div class="pipe-stat"><div class="pipe-stat-label">TM helices</div><div class="pipe-stat-value">{{ ann_tm | length or phob.get('tm_count', '—') }}</div></div>
+          <div class="pipe-stat"><div class="pipe-stat-label">Signal peptide</div><div class="pipe-stat-value">{% if ann_sp %}Yes{% elif phob.get('has_signal_peptide') %}Yes{% elif phob.get('has_signal_peptide') == False %}No{% else %}—{% endif %}</div></div>
         </div>
       </div>
 
@@ -158,7 +252,7 @@
         <div class="pipe-result-card-title">Domain Architecture</div>
         <img src="/tools/protpipe/figure/{{ job_id }}" alt="Domain architecture" style="width:100%;max-width:800px;border-radius:6px;border:1px solid var(--border);">
         <div style="margin-top:10px;display:flex;gap:8px;">
-          <a class="pipe-dl-btn" href="/tools/protpipe/download/{{ job_id }}/svg">Download SVG</a>
+          <a class="pipe-dl-btn" href="/tools/protpipe/download/{{ job_id }}/figure">Download figure</a>
           <button class="pipe-btn-ghost" onclick="showTab('figure', document.getElementById('tab-btn-figure'))">Full view →</button>
         </div>
       </div>
@@ -169,15 +263,18 @@
       <div class="pipe-result-card">
         <div class="pipe-result-card-title">Top BLAST Hit</div>
         {% set h = blast_hits[0] %}
+        {% if h.get('protein_name') %}
+        <div style="font-size:1rem;font-weight:600;color:var(--text-primary);margin-bottom:4px;">{{ h.protein_name }}</div>
+        {% if h.get('organism') %}<div style="font-size:0.83rem;color:var(--text-secondary);font-style:italic;margin-bottom:10px;">{{ h.organism }}</div>{% endif %}
+        {% endif %}
         <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:0.9rem;">
           <div><span style="color:var(--text-light);font-size:0.78rem;">Accession</span><br>
-            <code style="background:#f0fdf4;color:#166534;padding:2px 8px;border-radius:4px;">{{ h.accession }}</code>
+            <a href="https://www.ncbi.nlm.nih.gov/protein/{{ h.accession }}" target="_blank" rel="noopener" style="font-family:monospace;background:#f0fdf4;color:#166534;padding:2px 8px;border-radius:4px;text-decoration:none;">{{ h.accession }}</a>
           </div>
           <div><span style="color:var(--text-light);font-size:0.78rem;">E-value</span><br><strong>{{ "%.2e" | format(h.e_value) }}</strong></div>
           <div><span style="color:var(--text-light);font-size:0.78rem;">Identity</span><br><strong>{{ h.identity_pct }}%</strong></div>
           <div><span style="color:var(--text-light);font-size:0.78rem;">Coverage</span><br><strong>{{ h.coverage_pct }}%</strong></div>
         </div>
-        <div style="margin-top:10px;font-size:0.85rem;color:var(--text-secondary);">{{ h.title }}</div>
         <button class="pipe-btn-ghost" style="margin-top:10px;" onclick="showTab('homology', document.getElementById('tab-btn-homology'))">All BLAST hits →</button>
       </div>
       {% endif %}
@@ -254,56 +351,595 @@
 
     <!-- ────────────── TAB: Homology ────────────── -->
     <div id="tab-homology" class="pipe-tab-panel">
+
+      <!-- BLAST search parameters banner -->
+      <div class="pipe-result-card" style="padding:12px 18px;margin-bottom:14px;background:var(--bg);">
+        <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:center;">
+          <div><span style="font-size:0.67rem;font-weight:700;text-transform:uppercase;color:var(--text-light);">Program</span><br><code style="font-size:0.83rem;font-weight:600;">blastp</code></div>
+          <div><span style="font-size:0.67rem;font-weight:700;text-transform:uppercase;color:var(--text-light);">Database</span><br><code style="font-size:0.83rem;font-weight:600;">{{ blast_data.get('database','swissprot') | upper }}</code></div>
+          <div><span style="font-size:0.67rem;font-weight:700;text-transform:uppercase;color:var(--text-light);">Max hits</span><br><code style="font-size:0.83rem;font-weight:600;">{{ blast_data.get('max_hits_requested', 10) }}</code></div>
+          <div><span style="font-size:0.67rem;font-weight:700;text-transform:uppercase;color:var(--text-light);">Returned</span><br><code style="font-size:0.83rem;font-weight:600;">{{ blast_hits | length }}</code></div>
+          <div style="margin-left:auto;font-size:0.75rem;color:var(--text-secondary);max-width:280px;line-height:1.5;">
+            <strong>SwissProt</strong> is the curated section of UniProt — manually annotated, high-quality protein records. Hits here are reliable homologs.
+            <br>Identity ≥60%: close ortholog &nbsp;|&nbsp; 30–60%: conserved family &nbsp;|&nbsp; &lt;30%: distant or coincidental.
+          </div>
+        </div>
+      </div>
+
       {% if blast_hits %}
       <div class="pipe-result-card">
-        <div class="pipe-result-card-title">BLAST Top Hits — {{ blast_data.get('database','').upper() }}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+          <div class="pipe-result-card-title" style="margin:0;">BLAST Hits</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <span style="font-size:0.7rem;color:var(--text-light);margin-right:2px;">Show columns:</span>
+            {% for col_id, col_name in [('col-acc','Accession'),('col-protein','Protein'),('col-organism','Organism'),('col-evalue','E-value'),('col-identity','Identity'),('col-coverage','Coverage'),('col-score','Score')] %}
+            <label style="display:inline-flex;align-items:center;gap:3px;font-size:0.72rem;cursor:pointer;">
+              <input type="checkbox" checked onchange="toggleBlastCol('{{ col_id }}')" style="width:11px;height:11px;cursor:pointer;"> {{ col_name }}
+            </label>
+            {% endfor %}
+            <button onclick="generateBlastTableImage()" style="font-size:0.75rem;padding:4px 12px;background:#4f46e5;color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:600;margin-left:6px;">Save as image</button>
+          </div>
+        </div>
+
         <div style="overflow-x:auto;">
-        <table class="pipe-table">
+        <table class="pipe-table" id="blast-hits-table">
           <thead><tr>
-            <th>Accession</th><th>Description</th>
-            <th style="text-align:right;">E-value</th>
-            <th style="text-align:right;">Identity</th>
-            <th style="text-align:right;">Coverage</th>
-            <th style="text-align:right;">Score</th>
+            <th class="col-acc">Accession</th>
+            <th class="col-protein">Protein</th>
+            <th class="col-organism">Organism</th>
+            <th class="col-evalue" style="text-align:right;">E-value</th>
+            <th class="col-identity" style="text-align:right;">Identity</th>
+            <th class="col-coverage" style="text-align:right;">Coverage</th>
+            <th class="col-score" style="text-align:right;">Bit score</th>
           </tr></thead>
           <tbody>
           {% for h in blast_hits %}
           <tr>
-            <td>
+            <td class="col-acc">
               <a href="https://www.ncbi.nlm.nih.gov/protein/{{ h.accession }}" target="_blank" rel="noopener"
                  style="font-family:monospace;font-size:0.82rem;background:#f0fdf4;color:#166534;padding:2px 7px;border-radius:4px;text-decoration:none;">
                 {{ h.accession }}</a>
             </td>
-            <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.85rem;color:var(--text-secondary);" title="{{ h.title }}">{{ h.title }}</td>
-            <td style="text-align:right;font-family:monospace;font-size:0.85rem;">{{ "%.2e" | format(h.e_value) }}</td>
-            <td style="text-align:right;font-size:0.85rem;">{{ h.identity_pct }}%</td>
-            <td style="text-align:right;font-size:0.85rem;">{{ h.coverage_pct }}%</td>
-            <td style="text-align:right;font-size:0.85rem;">{{ h.score }}</td>
+            <td class="col-protein" style="max-width:240px;font-size:0.85rem;" title="{{ h.title }}">
+              {{ h.get('protein_name') or h.title[:80] }}
+            </td>
+            <td class="col-organism" style="max-width:160px;font-size:0.83rem;color:var(--text-secondary);font-style:italic;">{{ h.get('organism','') }}</td>
+            <td class="col-evalue" style="text-align:right;font-family:monospace;font-size:0.85rem;">
+              {% if h.e_value == 0.0 %}0.0{% else %}{{ "%.2e" | format(h.e_value) }}{% endif %}
+            </td>
+            <td class="col-identity" style="text-align:right;font-size:0.85rem;">
+              <span style="{% if h.identity_pct >= 60 %}color:#15803d;font-weight:700;{% elif h.identity_pct >= 30 %}color:#d97706;font-weight:600;{% else %}color:var(--text-secondary);{% endif %}">{{ h.identity_pct }}%</span>
+            </td>
+            <td class="col-coverage" style="text-align:right;font-size:0.85rem;">{{ h.coverage_pct }}%</td>
+            <td class="col-score" style="text-align:right;font-size:0.85rem;">{{ h.score | int }}</td>
           </tr>
           {% endfor %}
           </tbody>
         </table>
         </div>
+
+        <!-- Canvas output for table image -->
+        <div id="blast-canvas-wrap" style="display:none;margin-top:16px;">
+          <canvas id="blast-canvas" style="border:1px solid var(--border);border-radius:6px;max-width:100%;display:block;"></canvas>
+          <div style="margin-top:8px;">
+            <a id="blast-canvas-dl" download="blast_hits.png" style="font-size:0.8rem;padding:5px 14px;background:#2563eb;color:#fff;border-radius:5px;text-decoration:none;font-weight:600;">Download PNG</a>
+          </div>
+        </div>
+
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+          <p style="font-size:0.77rem;color:var(--text-light);margin:0;">
+            <strong>Identity</strong>: fraction of aligned positions that are identical.
+            <strong>Coverage</strong>: query sequence fraction covered by the best alignment.
+            <strong>E-value</strong>: expected alignments this good by chance; &lt;1e-5 is highly significant.
+            <strong>Bit score</strong>: normalized alignment quality independent of database size.
+          </p>
+        </div>
       </div>
+
       {% elif errs.get('blast') %}
       <div class="pipe-result-card">
-        <div class="pipe-result-card-title">BLAST</div>
+        <div class="pipe-result-card-title">BLAST — Failed</div>
         <div class="pipe-error-diag">
           <h4>BLAST search failed</h4>
           <p>{{ errs.blast }}</p>
-          <p style="margin-top:8px;">BLAST uses the confirmed NCBI remote API via Biopython. If this failed, the NCBI servers may have been temporarily unavailable. Try resubmitting.</p>
+          <p style="margin-top:8px;">BLAST submits to NCBI's remote API. This can fail if NCBI servers are temporarily overloaded or the query times out (queries can take 2–10 minutes for longer sequences). Try resubmitting — NCBI BLAST queues are usually responsive within a few minutes.</p>
         </div>
       </div>
       {% else %}
-      <div class="pipe-result-card"><p style="color:var(--text-light);font-size:0.9rem;">BLAST was not run for this job.</p></div>
+      <div class="pipe-result-card">
+        <p style="color:var(--text-light);font-size:0.9rem;">BLAST homology search was not run for this job.</p>
+        <p style="font-size:0.82rem;color:var(--text-secondary);margin-top:6px;">BLAST (blastp vs SwissProt) finds homologous proteins and reports percent identity, coverage, and E-value. Re-run the analysis with BLAST enabled to see top hits.</p>
+      </div>
       {% endif %}
+    </div>
+
+    <!-- ────────────── TAB: Annotations ─────────── -->
+    <div id="tab-annotations" class="pipe-tab-panel">
+
+      {# ── Source pipeline summary (always visible) ────────────── #}
+      {% if ann_debug %}
+      <div class="pipe-result-card" style="margin-bottom:16px;padding:14px 18px;">
+        <div style="font-size:0.72rem;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">Pipeline — hits per source</div>
+        <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border);">
+              <th style="text-align:left;padding:4px 10px 6px 0;font-weight:600;color:var(--text-secondary);">Source</th>
+              <th style="text-align:right;padding:4px 8px 6px;color:#64748b;">Raw parsed</th>
+              <th style="text-align:right;padding:4px 8px 6px;color:#15803d;">High-conf</th>
+              <th style="text-align:right;padding:4px 8px 6px;color:#b45309;">Low-conf</th>
+              <th style="text-align:right;padding:4px 8px 6px;color:#dc2626;">Discarded</th>
+              <th style="text-align:right;padding:4px 8px 6px;color:var(--text-secondary);">Final (deduped)</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for src in ann_debug.get('raw_per_source', {}).keys() | list %}
+          {% set raw_n = ann_debug.get('raw_per_source', {}).get(src, 0) %}
+          {% set hi_n  = ann_debug.get('filtered_per_source', {}).get(src, 0) %}
+          {% set lc_n  = low_conf | selectattr('source', 'equalto', src) | list | length %}
+          {% set disc_n = raw_n - hi_n - lc_n %}
+          <tr style="border-bottom:1px solid #f1f5f9;">
+            <td style="padding:5px 10px 5px 0;font-weight:600;white-space:nowrap;">{{ src }}</td>
+            <td style="text-align:right;padding:5px 8px;font-family:monospace;">{{ raw_n }}</td>
+            <td style="text-align:right;padding:5px 8px;font-family:monospace;color:{% if hi_n %}#15803d{% else %}var(--text-light){% endif %};">{{ hi_n }}</td>
+            <td style="text-align:right;padding:5px 8px;font-family:monospace;color:{% if lc_n %}#b45309{% else %}var(--text-light){% endif %};">{{ lc_n }}</td>
+            <td style="text-align:right;padding:5px 8px;font-family:monospace;color:{% if disc_n > 0 %}#dc2626{% else %}var(--text-light){% endif %};">{{ disc_n }}</td>
+            <td style="text-align:right;padding:5px 8px;font-family:monospace;font-weight:{% if ann_debug.get('deduped_per_source', {}).get(src, 0) %}700{% else %}400{% endif %};">{{ ann_debug.get('deduped_per_source', {}).get(src, 0) }}</td>
+          </tr>
+          {% endfor %}
+          <tr style="border-top:2px solid var(--border);font-weight:700;">
+            <td style="padding:6px 10px 4px 0;">Total</td>
+            <td style="text-align:right;padding:6px 8px 4px;font-family:monospace;">{{ ann_debug.get('raw_total', 0) }}</td>
+            <td style="text-align:right;padding:6px 8px 4px;font-family:monospace;color:#15803d;">{{ ann_debug.get('high_confidence', 0) }}</td>
+            <td style="text-align:right;padding:6px 8px 4px;font-family:monospace;color:#b45309;">{{ ann_debug.get('low_confidence', 0) }}</td>
+            <td style="text-align:right;padding:6px 8px 4px;font-family:monospace;color:#dc2626;">{{ ann_debug.get('discarded', 0) }}</td>
+            <td style="text-align:right;padding:6px 8px 4px;font-family:monospace;font-weight:700;">{{ ann_debug.get('deduped', 0) }}</td>
+          </tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+      {% endif %}
+
+      {# ── Sub-view selector ───────────────────────────────────── #}
+      <div style="display:flex;gap:4px;margin-bottom:16px;border-bottom:2px solid var(--border);padding-bottom:0;">
+        <button class="ann-view-btn active" id="ann-view-btn-report"   onclick="showAnnView('report')"   style="padding:7px 16px;border:none;border-bottom:2px solid var(--accent);margin-bottom:-2px;background:none;font-size:0.84rem;font-weight:600;color:var(--accent);cursor:pointer;">Report</button>
+        <button class="ann-view-btn"        id="ann-view-btn-raw"      onclick="showAnnView('raw')"      style="padding:7px 16px;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;background:none;font-size:0.84rem;font-weight:600;color:var(--text-secondary);cursor:pointer;">Raw hits</button>
+        <button class="ann-view-btn"        id="ann-view-btn-pipeline" onclick="showAnnView('pipeline')" style="padding:7px 16px;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;background:none;font-size:0.84rem;font-weight:600;color:var(--text-secondary);cursor:pointer;">Filter log</button>
+      </div>
+
+      {# ════════════════════════════════════════════════════════════
+         VIEW: REPORT (default)
+         ════════════════════════════════════════════════════════════ #}
+      <div id="ann-view-report">
+
+        {# Figure area #}
+        <div id="ann-figure-loading" style="display:none;padding:10px 0;color:var(--text-light);font-size:0.88rem;">Generating figure…</div>
+        <div id="ann-figure-error" style="display:none;margin-bottom:12px;" class="pipe-error-diag"></div>
+        {% if summary.get('figure_ok') %}
+        <div style="margin-bottom:18px;">
+          <img id="ann-figure-img"
+               src="/tools/protpipe/figure/{{ job_id }}"
+               alt="Domain architecture"
+               style="width:100%;max-width:900px;border-radius:8px;border:1px solid var(--border);display:block;"
+               onerror="this.style.display='none';document.getElementById('ann-figure-na').style.display='block';">
+          <div id="ann-figure-na" style="display:none;color:var(--text-light);font-size:0.85rem;padding:6px 0;">Figure could not be loaded.</div>
+          <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <a id="ann-figure-dl" class="pipe-dl-btn" href="/tools/protpipe/download/{{ job_id }}/figure">Download figure</a>
+            {% if summary.get('figure_renderer') %}<span style="font-size:0.72rem;color:var(--text-light);">{{ summary.figure_renderer }}</span>{% endif %}
+          </div>
+        </div>
+        {% else %}
+        <div id="ann-figure-na" style="color:var(--text-light);font-size:0.85rem;margin-bottom:14px;padding:10px 14px;background:#f8fafc;border:1px dashed var(--border);border-radius:6px;">
+          Check annotations below, then click <strong>Generate Figure</strong> to build the domain architecture diagram.
+        </div>
+        <img id="ann-figure-img" src="" alt="" style="display:none;width:100%;max-width:900px;border-radius:8px;border:1px solid var(--border);margin-bottom:8px;">
+        <div style="display:none;margin-bottom:16px;" id="ann-figure-dl-wrap">
+          <a id="ann-figure-dl" class="pipe-dl-btn" href="/tools/protpipe/download/{{ job_id }}/figure">Download figure</a>
+        </div>
+        {% endif %}
+
+        {# Figure generation controls #}
+        <div style="margin-bottom:20px;background:#1e293b;border-radius:10px;padding:16px 20px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:0.8rem;color:#94a3b8;font-weight:500;">Select annotations:</span>
+              <button class="pipe-btn-ghost" style="font-size:0.75rem;padding:4px 10px;color:#e2e8f0;border-color:#475569;" onclick="selectAllAnns(true)">All</button>
+              <button class="pipe-btn-ghost" style="font-size:0.75rem;padding:4px 10px;color:#e2e8f0;border-color:#475569;" onclick="selectAllAnns(false)">None</button>
+              <span style="font-size:0.8rem;color:#64748b;" id="ann-sel-count">0 selected</span>
+            </div>
+            <button style="padding:10px 28px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:0.95rem;font-weight:700;cursor:pointer;letter-spacing:0.01em;box-shadow:0 2px 10px rgba(37,99,235,0.4);transition:background 0.15s;" id="gen-fig-btn" onmouseover="this.style.background='#1d4ed8'" onmouseout="this.style.background='#2563eb'" onclick="generateFigure()">
+              ▶&nbsp; Generate Figure
+            </button>
+          </div>
+        </div>
+
+        {# Custom annotations textarea #}
+        <div class="pipe-result-card" style="margin-bottom:14px;border-left:3px solid #7c3aed;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;cursor:pointer;" onclick="toggleCustomAnns()">
+            <div class="pipe-result-card-title" style="margin:0;color:#7c3aed;">E. Custom Annotations</div>
+            <span id="custom-ann-arrow" style="font-size:0.85rem;color:#7c3aed;">▼</span>
+            <span style="font-size:0.75rem;color:var(--text-light);margin-left:4px;">optional — write your own MyDomains commands</span>
+          </div>
+          <div id="custom-ann-body" style="display:none;">
+            <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:10px;line-height:1.6;">
+              Add custom entries using MyDomains format. These are appended to the auto-generated data when you click <strong>Generate Figure</strong>.<br>
+              <strong>Domain:</strong> <code>start,stop,shape,color,label</code> &nbsp;|&nbsp;
+              <strong>Range:</strong> <code>start,stop,type</code> &nbsp;|&nbsp;
+              <strong>Site:</strong> <code>position,type</code><br>
+              Separate sections with a blank line. Shapes: 1=rect 2=rounded 3=→ 4=← 5=ellipse 6=diamond. Colors: 1=orange 2=green 3=blue 4=red.
+            </p>
+            <textarea id="custom-ann-input" rows="6"
+              style="width:100%;font-family:monospace;font-size:0.82rem;padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:#0f172a;color:#e2e8f0;resize:vertical;outline:none;"
+              placeholder="# Examples:&#10;50,300,2,3,My Domain&#10;&#10;120,148,2&#10;&#10;441,1"></textarea>
+          </div>
+        </div>
+
+        {# Tutorial — how to read the diagram #}
+        <div class="pipe-result-card" style="margin-bottom:14px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleFigHelp()">
+            <div class="pipe-result-card-title" style="margin:0;">How to read and customize the domain architecture diagram</div>
+            <span id="fig-help-arrow" style="font-size:1rem;color:var(--text-light);transition:transform 0.2s;">▼</span>
+          </div>
+          <div id="fig-help-body" style="display:none;margin-top:16px;">
+            <p style="font-size:0.9rem;color:var(--text-secondary);line-height:1.7;margin-bottom:14px;">
+              The domain architecture diagram is a <strong>linear representation of the protein sequence</strong>. Each annotation is drawn as one of three elements: a <strong>Domain</strong> (labeled block), a <strong>Range</strong> (highlighted span), or a <strong>Site</strong> (single-residue marker).
+            </p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:16px;">
+              <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;">
+                <div style="font-weight:700;color:#1e3a8a;margin-bottom:4px;font-size:0.85rem;">Domain (5 fields)</div>
+                <code style="display:block;font-size:0.75rem;background:#dbeafe;padding:4px 8px;border-radius:4px;margin-bottom:6px;">start,stop,shape,color,label</code>
+                <p style="font-size:0.8rem;color:#1e40af;margin:0;">E.g. <code>22,660,3,3,Peptidase</code></p>
+              </div>
+              <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;">
+                <div style="font-weight:700;color:#15803d;margin-bottom:4px;font-size:0.85rem;">Range (3 fields)</div>
+                <code style="display:block;font-size:0.75rem;background:#dcfce7;padding:4px 8px;border-radius:4px;margin-bottom:6px;">start,stop,type</code>
+                <p style="font-size:0.8rem;color:#166534;margin:0;">E.g. <code>120,148,2</code> (disulfide bridge)</p>
+              </div>
+              <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:12px;">
+                <div style="font-weight:700;color:#92400e;margin-bottom:4px;font-size:0.85rem;">Site (2 fields)</div>
+                <code style="display:block;font-size:0.75rem;background:#fef9c3;padding:4px 8px;border-radius:4px;margin-bottom:6px;">position,type</code>
+                <p style="font-size:0.8rem;color:#92400e;margin:0;">E.g. <code>603,1</code> (pin marker)</p>
+              </div>
+            </div>
+            <p style="font-size:0.85rem;font-weight:700;margin-bottom:6px;">Shape codes:</p>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;font-size:0.78rem;">
+              <span style="background:#f1f5f9;padding:2px 8px;border-radius:4px;">1=rect</span>
+              <span style="background:#f1f5f9;padding:2px 8px;border-radius:4px;">2=rounded</span>
+              <span style="background:#f1f5f9;padding:2px 8px;border-radius:4px;">3=→ arrow</span>
+              <span style="background:#f1f5f9;padding:2px 8px;border-radius:4px;">4=← arrow</span>
+              <span style="background:#f1f5f9;padding:2px 8px;border-radius:4px;">5=ellipse</span>
+              <span style="background:#f1f5f9;padding:2px 8px;border-radius:4px;">6=diamond</span>
+            </div>
+            <p style="font-size:0.85rem;font-weight:700;margin-bottom:6px;">Color codes:</p>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;font-size:0.78rem;">
+              <span style="background:#fed7aa;padding:2px 8px;border-radius:4px;">1=orange</span>
+              <span style="background:#bbf7d0;padding:2px 8px;border-radius:4px;">2=green</span>
+              <span style="background:#bfdbfe;padding:2px 8px;border-radius:4px;">3=blue</span>
+              <span style="background:#fecaca;padding:2px 8px;border-radius:4px;">4=red</span>
+            </div>
+            <table class="pipe-table" style="font-size:0.8rem;margin-bottom:12px;">
+              <thead><tr><th>Feature</th><th>Format</th><th>Reason</th></tr></thead>
+              <tbody>
+                <tr><td>Signal peptide</td><td><code>1,end,2,2,Signal peptide</code></td><td>Labeled region at N-terminus</td></tr>
+                <tr><td>TM helix</td><td><code>start,end,4,1,TM helix</code></td><td>Distinct structural block</td></tr>
+                <tr><td>Disulfide bridge</td><td><code>start,end,2</code></td><td>Range marks the covalent span; no site pins</td></tr>
+                <tr><td>Active site</td><td><code>pos,1</code></td><td>Pin marker at each catalytic residue</td></tr>
+                <tr><td>Metal-binding</td><td><code>pos,0</code></td><td>Tick at individual ligand residue</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {# ── Section A: Domain Architecture ─── #}
+        <div class="pipe-result-card" style="margin-bottom:14px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <div class="pipe-result-card-title" style="margin:0;">A. Domain Architecture &amp; Structural Features</div>
+            <span class="pipe-info-tip" data-tip="Domains, families, repeats, and motifs identified by HMMER/Pfam, CDD, SMART, InterProScan, and ScanProsite. These represent conserved structural and functional regions. Sources are shown in the Program column. Multiple tools may report the same domain — deduplication is applied.">?</span>
+            <input type="checkbox" id="chk-all-domains" title="Select/deselect all" onchange="selectSection('.domain-chk',this.checked)" style="width:14px;height:14px;cursor:pointer;margin-left:auto;">
+          </div>
+          <div style="overflow-x:auto;">
+          <table class="pipe-table">
+            <thead><tr>
+              <th style="width:26px;"></th><th>Program</th><th>Interval</th><th>Name / Accession</th><th>Statistics</th>
+            </tr></thead>
+            <tbody>
+            {% set loop_idx = namespace(v=0) %}
+            {% for a in annotations %}{% if a.feature_type in ['domain','family','repeat','motif','coiled_coil','low_complexity'] %}
+            {% set gidx = loop.index0 %}
+            <tr>
+              <td><input type="checkbox" class="ann-check domain-chk" data-gidx="{{ gidx }}" checked style="width:13px;height:13px;cursor:pointer;"></td>
+              <td><span style="font-size:0.74rem;font-weight:600;background:#f1f5f9;border:1px solid var(--border);padding:2px 6px;border-radius:4px;white-space:nowrap;">{{ a.source }}</span></td>
+              <td style="font-family:monospace;font-size:0.83rem;white-space:nowrap;">{{ a.start }}–{{ a.end }}</td>
+              <td style="font-size:0.87rem;">
+                {{ a.label }}{% if a.accession and a.accession != a.label %} <span style="color:var(--text-light);font-size:0.74rem;">({{ a.accession }})</span>{% endif %}
+                {% if a.source_support | length > 1 %}<span style="background:#f0fdf4;color:#15803d;border-radius:3px;font-size:0.67rem;padding:1px 4px;margin-left:4px;font-weight:700;">×{{ a.source_support | length }}</span>{% endif %}
+                {% if a.feature_type == 'low_complexity' %}<span style="color:var(--text-light);font-size:0.71rem;margin-left:4px;">low-complexity</span>{% endif %}
+              </td>
+              <td style="font-family:monospace;font-size:0.79rem;color:var(--text-secondary);">{{ a.evidence or '—' }}</td>
+            </tr>
+            {% endif %}{% endfor %}
+            {% if not ann_domains %}
+            <tr><td colspan="5" style="color:var(--text-light);font-size:0.84rem;padding:10px;">No high-confidence domain hits.</td></tr>
+            {% endif %}
+            </tbody>
+          </table>
+          </div>
+        </div>
+
+        {# ── Section B: Signal Sequence / Topology ─── #}
+        {% set phob_has_sp = phob.get('has_signal_peptide') %}
+        {% set phob_sp_end = phob.get('signal_peptide_end') or 0 %}
+        {% set phob_tm_count = phob.get('tm_count', 0) %}
+        {% set phob_tm_helices = phob.get('tm_helices', []) %}
+        {% set sigp_has_sp = sigp.get('has_signal_peptide') %}
+        {% set sigp_sp_end = sigp.get('signal_peptide_end') or 0 %}
+        {% set show_sp = ann_sp or phob_has_sp or sigp_has_sp %}
+        {% set show_tm = ann_tm or (phob_tm_count and phob_tm_count > 0) %}
+        <div class="pipe-result-card" style="margin-bottom:14px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div class="pipe-result-card-title" style="margin:0;">B. Signal Sequence &amp; Topology</div>
+            <button class="pipe-btn-ghost" style="font-size:0.78rem;padding:3px 10px;" onclick="showTab('topology', document.querySelector('[onclick*=topology]'))">Full details in Topology tab →</button>
+          </div>
+          {% if show_sp or show_tm %}
+          <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;">
+
+            {# Signal peptide — show best source with exact residue range #}
+            {% if show_sp %}
+            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 16px;min-width:170px;">
+              <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;color:#166534;margin-bottom:6px;">Signal Peptide</div>
+              {% if ann_sp %}
+                {# Use the merged annotation — could be from Phobius or SignalP #}
+                <div style="font-size:0.95rem;font-weight:700;color:#15803d;">Residues 1–{{ ann_sp[0].end }}</div>
+                <div style="font-size:0.78rem;color:#166534;margin-top:3px;">
+                  Cleavage after residue {{ ann_sp[0].end }}<br>
+                  <span style="color:var(--text-light);">{{ ann_sp[0].source }}
+                  {% if ann_sp[0].source_support and ann_sp[0].source_support | length > 1 %}
+                    + {{ ann_sp[0].source_support | join(', ') }}
+                  {% endif %}</span>
+                </div>
+                {# If both ran and agree, show agreement badge #}
+                {% if phob_has_sp and sigp_has_sp %}
+                <div style="font-size:0.72rem;margin-top:6px;color:#166534;">&#10003; Phobius &amp; SignalP agree</div>
+                {% elif phob_has_sp and sigp and not sigp_has_sp %}
+                <div style="font-size:0.72rem;margin-top:6px;color:#92400e;">&#9888; Phobius yes / SignalP no</div>
+                {% elif sigp_has_sp and phob and not phob_has_sp %}
+                <div style="font-size:0.72rem;margin-top:6px;color:#92400e;">&#9888; SignalP yes / Phobius no</div>
+                {% endif %}
+              {% elif phob_has_sp and phob_sp_end %}
+                <div style="font-size:0.95rem;font-weight:700;color:#15803d;">Residues 1–{{ phob_sp_end }}</div>
+                <div style="font-size:0.78rem;color:#166534;margin-top:3px;">Cleavage after residue {{ phob_sp_end }} (Phobius)</div>
+              {% elif sigp_has_sp and sigp_sp_end %}
+                <div style="font-size:0.95rem;font-weight:700;color:#15803d;">Residues 1–{{ sigp_sp_end }}</div>
+                <div style="font-size:0.78rem;color:#166534;margin-top:3px;">Cleavage after residue {{ sigp_sp_end }} (SignalP)</div>
+              {% else %}
+                <div style="font-size:0.95rem;font-weight:600;color:#15803d;">Detected</div>
+              {% endif %}
+            </div>
+            {% endif %}
+
+            {# TM helices with explicit residue ranges #}
+            {% if show_tm %}
+            <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 16px;min-width:170px;">
+              <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;color:#991b1b;margin-bottom:6px;">TM Helices</div>
+              {% set tm_list = ann_tm if ann_tm else phob_tm_helices %}
+              {% set tm_src  = '' if ann_tm else ' (Phobius)' %}
+              <div style="font-size:0.95rem;font-weight:700;color:#dc2626;">{{ tm_list | length }} detected</div>
+              <div style="font-size:0.78rem;color:#7f1d1d;margin-top:3px;">
+                {% for h in tm_list[:4] %}
+                  {% if h.start is defined %}{{ h.start }}–{{ h.end }}{% else %}{{ h.get('start') }}–{{ h.get('end') }}{% endif %}{% if not loop.last %}, {% endif %}
+                {% endfor %}{% if tm_list | length > 4 %}, …{% endif %}
+                {{ tm_src }}
+              </div>
+            </div>
+            {% endif %}
+
+          </div>
+          {# Hidden checkboxes for figure generator — keep gidx aligned #}
+          <div style="display:none;">
+          {% for a in annotations %}{% if a.feature_type in ['signal_peptide','transmembrane'] %}
+          {% set gidx = loop.index0 %}
+          <input type="checkbox" class="ann-check topo-chk" data-gidx="{{ gidx }}" checked>
+          {% endif %}{% endfor %}
+          </div>
+          {% else %}
+          <p style="color:var(--text-light);font-size:0.84rem;margin:0;">No signal peptide or transmembrane helices detected.</p>
+          {% endif %}
+        </div>
+
+        {# ── Section C: Functional Sites (always shown) ─── #}
+        <div class="pipe-result-card" style="margin-bottom:14px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <div class="pipe-result-card-title" style="margin:0;">C. Functional Sites</div>
+            <span class="pipe-info-tip" data-tip="Active sites, binding sites, metal-binding residues, and disulfide bonds detected by ScanProsite and InterProScan. These are single-residue or small-span features with known biochemical roles. They are always kept regardless of E-value thresholds.">?</span>
+            <input type="checkbox" id="chk-all-sites" title="Select/deselect all" onchange="selectSection('.site-chk',this.checked)" style="width:14px;height:14px;cursor:pointer;margin-left:auto;">
+          </div>
+          <div style="overflow-x:auto;">
+          <table class="pipe-table">
+            <thead><tr>
+              <th style="width:26px;"></th><th>Program</th><th>Position</th><th>Feature</th><th>Statistics</th>
+            </tr></thead>
+            <tbody>
+            {% for a in annotations %}{% if a.feature_type in ['active_site','binding_site','metal_binding','disulfide','site'] %}
+            {% set gidx = loop.index0 %}
+            <tr>
+              <td><input type="checkbox" class="ann-check site-chk" data-gidx="{{ gidx }}" checked style="width:13px;height:13px;cursor:pointer;"></td>
+              <td><span style="font-size:0.74rem;font-weight:600;background:#fff7ed;border:1px solid #fed7aa;padding:2px 6px;border-radius:4px;white-space:nowrap;">{{ a.source }}</span></td>
+              <td style="font-family:monospace;font-size:0.83rem;white-space:nowrap;">{% if a.start == a.end %}{{ a.start }}{% else %}{{ a.start }}–{{ a.end }}{% endif %}</td>
+              <td style="font-size:0.87rem;">
+                {{ a.label }}
+                {% if a.feature_type == 'active_site' %}<span style="font-size:0.69rem;background:#fee2e2;color:#dc2626;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:700;">ACT_SITE</span>
+                {% elif a.feature_type == 'metal_binding' %}<span style="font-size:0.69rem;background:#ede9fe;color:#7c3aed;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:700;">METAL</span>
+                {% elif a.feature_type == 'disulfide' %}<span style="font-size:0.69rem;background:#fef3c7;color:#b45309;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:700;">DISULFID</span>
+                {% elif a.feature_type == 'binding_site' %}<span style="font-size:0.69rem;background:#e0f2fe;color:#0369a1;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:700;">BINDING</span>
+                {% endif %}
+              </td>
+              <td style="font-family:monospace;font-size:0.79rem;color:var(--text-secondary);">{{ a.evidence or '—' }}</td>
+            </tr>
+            {% endif %}{% endfor %}
+            {% if not ann_sites %}
+            <tr><td colspan="5" style="color:var(--text-light);font-size:0.84rem;padding:10px;">None detected. (Run ScanProsite or InterProScan to find ACT_SITE, DISULFID, BINDING residues.)</td></tr>
+            {% endif %}
+            </tbody>
+          </table>
+          </div>
+        </div>
+
+        {# ── Section D: Low-confidence / Supplementary ─── #}
+        {% if low_conf %}
+        <div class="pipe-result-card" style="margin-bottom:14px;border-left:3px solid #fde68a;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <div class="pipe-result-card-title" style="margin:0;color:#92400e;">D. Low-confidence / Supplementary</div>
+            <span style="font-size:0.71rem;color:#92400e;">Real parsed hits below strict threshold — include in figure at your discretion</span>
+            <input type="checkbox" id="chk-all-lc" title="Select/deselect all" onchange="selectSection('.lc-chk',this.checked)" style="width:14px;height:14px;cursor:pointer;margin-left:auto;">
+          </div>
+          <div style="overflow-x:auto;">
+          <table class="pipe-table">
+            <thead><tr>
+              <th style="width:26px;"></th><th>Program</th><th>Interval</th><th>Name / Feature</th><th>Reason flagged</th>
+            </tr></thead>
+            <tbody>
+            {% for a in low_conf %}
+            {% set gidx = n_hi + loop.index0 %}
+            <tr style="background:#fffbeb;">
+              <td><input type="checkbox" class="ann-check lc-chk" data-gidx="{{ gidx }}" style="width:13px;height:13px;cursor:pointer;"></td>
+              <td><span style="font-size:0.74rem;font-weight:600;background:#fef3c7;border:1px solid #fde68a;padding:2px 6px;border-radius:4px;white-space:nowrap;">{{ a.source }}</span></td>
+              <td style="font-family:monospace;font-size:0.83rem;white-space:nowrap;">{% if a.start == a.end %}{{ a.start }}{% else %}{{ a.start }}–{{ a.end }}{% endif %}</td>
+              <td style="font-size:0.87rem;">
+                {{ a.label }}{% if a.accession and a.accession != a.label %} <span style="color:var(--text-light);font-size:0.74rem;">({{ a.accession }})</span>{% endif %}
+                {% if a.feature_type == 'active_site' %}<span style="font-size:0.69rem;background:#fee2e2;color:#dc2626;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:700;">ACT_SITE</span>
+                {% elif a.feature_type == 'metal_binding' %}<span style="font-size:0.69rem;background:#ede9fe;color:#7c3aed;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:700;">METAL</span>
+                {% elif a.feature_type == 'disulfide' %}<span style="font-size:0.69rem;background:#fef3c7;color:#b45309;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:700;">DISULFID</span>
+                {% elif a.feature_type == 'binding_site' %}<span style="font-size:0.69rem;background:#e0f2fe;color:#0369a1;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:700;">BINDING</span>
+                {% elif a.feature_type == 'signal_peptide' %}<span style="font-size:0.69rem;background:#fefce8;color:#854d0e;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:700;">SP</span>
+                {% elif a.feature_type == 'transmembrane' %}<span style="font-size:0.69rem;background:#fef2f2;color:#9f1239;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:700;">TM</span>
+                {% endif %}
+              </td>
+              <td style="font-family:monospace;font-size:0.77rem;color:#b45309;">{{ a.filter_reason if a.filter_reason is defined else '' }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          </div>
+        </div>
+        {% endif %}
+
+        {% if not (annotations or low_conf) %}
+        <div class="pipe-result-card">
+          <p style="color:var(--text-light);font-size:0.9rem;">
+            No annotations available yet.
+            {% if errs.get('cdd') or errs.get('scanprosite') or errs.get('interproscan') %}
+            Some annotation sources encountered errors — see Warnings in the Overview tab.
+            {% else %}
+            Annotation tools may still be running.
+            {% endif %}
+          </p>
+        </div>
+        {% endif %}
+
+      </div>{# /ann-view-report #}
+
+      {# ════════════════════════════════════════════════════════════
+         VIEW: RAW HITS — all parsed annotations before any filter
+         ════════════════════════════════════════════════════════════ #}
+      <div id="ann-view-raw" style="display:none;">
+        {% if raw_anns %}
+        {# Group by source for display #}
+        {% set sources_seen = [] %}
+        {% for a in raw_anns %}{% if a.source not in sources_seen %}{% set _ = sources_seen.append(a.source) %}{% endif %}{% endfor %}
+
+        {% for src in sources_seen %}
+        {% set src_anns = raw_anns | selectattr('source', 'equalto', src) | list %}
+        <div class="pipe-result-card" style="margin-bottom:14px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+            <div class="pipe-result-card-title" style="margin:0;font-size:0.9rem;">{{ src }}</div>
+            <span style="font-size:0.75rem;color:var(--text-light);">{{ src_anns | length }} hits parsed</span>
+          </div>
+          <div style="overflow-x:auto;">
+          <table class="pipe-table" style="font-size:0.82rem;">
+            <thead><tr>
+              <th>Status</th><th>Type</th><th>Interval</th><th>Label</th><th>E-value / Score</th>
+            </tr></thead>
+            <tbody>
+            {% for a in src_anns %}
+            {# Determine outcome: is it in hi-conf, low-conf, or discarded? #}
+            {% set in_hi = annotations | selectattr('source','equalto',a.source) | selectattr('start','equalto',a.start) | selectattr('end','equalto',a.end) | list | length > 0 %}
+            {% set in_lc = low_conf   | selectattr('source','equalto',a.source) | selectattr('start','equalto',a.start) | selectattr('end','equalto',a.end) | list | length > 0 %}
+            {% if in_hi %}
+            {% set outcome_color = '#dcfce7' %}{% set outcome_text_color = '#15803d' %}{% set outcome_label = 'high-conf' %}
+            {% elif in_lc %}
+            {% set outcome_color = '#fef3c7' %}{% set outcome_text_color = '#b45309' %}{% set outcome_label = 'low-conf' %}
+            {% else %}
+            {% set outcome_color = '#fee2e2' %}{% set outcome_text_color = '#dc2626' %}{% set outcome_label = 'discarded' %}
+            {% endif %}
+            <tr>
+              <td><span style="font-size:0.68rem;background:{{ outcome_color }};color:{{ outcome_text_color }};padding:2px 6px;border-radius:4px;font-weight:700;white-space:nowrap;">{{ outcome_label }}</span></td>
+              <td style="color:var(--text-secondary);">{{ a.feature_type }}</td>
+              <td style="font-family:monospace;white-space:nowrap;">{{ a.start }}–{{ a.end }}</td>
+              <td>{{ a.label }}{% if a.accession and a.accession != a.label %} <span style="color:var(--text-light);font-size:0.74rem;">({{ a.accession }})</span>{% endif %}</td>
+              <td style="font-family:monospace;font-size:0.79rem;color:var(--text-secondary);">
+                {% if a.e_value is not none %}{{ '%.2e' | format(a.e_value) }}{% elif a.score is not none %}Score {{ a.score }}{% else %}—{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="pipe-result-card"><p style="color:var(--text-light);font-size:0.9rem;">Raw annotations not available. Re-run the job to populate this view.</p></div>
+        {% endif %}
+      </div>{# /ann-view-raw #}
+
+      {# ════════════════════════════════════════════════════════════
+         VIEW: FILTER LOG — what was dropped and why
+         ════════════════════════════════════════════════════════════ #}
+      <div id="ann-view-pipeline" style="display:none;">
+        {% set filter_log = ann_debug.get('filter_log', []) if ann_debug else [] %}
+        {% if filter_log %}
+        <div class="pipe-result-card" style="margin-bottom:14px;">
+          <div class="pipe-result-card-title" style="margin-bottom:12px;">Filter log — {{ filter_log | length }} items removed or demoted</div>
+          <div style="overflow-x:auto;max-height:500px;overflow-y:auto;">
+          <table class="pipe-table" style="font-size:0.8rem;">
+            <thead style="position:sticky;top:0;background:#fff;z-index:1;">
+              <tr><th>Outcome</th><th>Source</th><th>Label</th><th>Interval</th><th>Reason</th></tr>
+            </thead>
+            <tbody>
+            {% for e in filter_log %}
+            <tr>
+              <td>
+                {% if e.bucket == 'discarded' %}<span style="font-size:0.68rem;background:#fee2e2;color:#dc2626;padding:2px 6px;border-radius:4px;font-weight:700;white-space:nowrap;">discarded</span>
+                {% else %}<span style="font-size:0.68rem;background:#fef3c7;color:#b45309;padding:2px 6px;border-radius:4px;font-weight:700;white-space:nowrap;">low-conf</span>{% endif %}
+              </td>
+              <td style="white-space:nowrap;font-weight:600;">{{ e.source }}</td>
+              <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ e.label }}">{{ e.label }}</td>
+              <td style="font-family:monospace;white-space:nowrap;">{{ e.start }}–{{ e.end }}</td>
+              <td style="font-family:monospace;font-size:0.77rem;color:var(--text-secondary);">{{ e.reason }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          </div>
+        </div>
+        {% else %}
+        <div class="pipe-result-card"><p style="color:var(--text-light);font-size:0.9rem;">No items were removed by the filter (all parsed hits passed quality thresholds).</p></div>
+        {% endif %}
+      </div>{# /ann-view-pipeline #}
+
     </div>
 
     <!-- ────────────── TAB: Domains ────────────── -->
     <div id="tab-domains" class="pipe-tab-panel">
       {% if domains %}
       <div class="pipe-result-card">
-        <div class="pipe-result-card-title">Pfam Domain Hits (HMMER)</div>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div class="pipe-result-card-title" style="margin:0;">Pfam Domain Hits (HMMER)</div>
+            <span class="pipe-info-tip" data-tip="Pfam uses profile Hidden Markov Models (HMMs) to find conserved protein domain families. HMMER searches your sequence against the Pfam database via the EBI API. Each hit reports the Pfam accession (PFxxxxx), domain description, residue interval, and E-value. Lower E-value = stronger match.">?</span>
+          </div>
+          <span style="font-size:0.76rem;color:var(--text-light);">Raw HMMER results — merged multi-source view in <a href="#" onclick="showTab('annotations',document.querySelector('[onclick*=annotations]'));return false;" style="color:var(--accent);">Annotations tab</a></span>
+        </div>
         <div style="overflow-x:auto;">
         <table class="pipe-table">
           <thead><tr>
@@ -356,19 +992,96 @@
 
     <!-- ────────────── TAB: Topology ────────────── -->
     <div id="tab-topology" class="pipe-tab-panel">
-      {% if phob %}
-      <div class="pipe-result-card">
-        <div class="pipe-result-card-title">Signal Peptide &amp; Transmembrane Topology (Phobius)</div>
-        <div class="pipe-phobius-grid">
-          <div class="pipe-phob-card" style="background:#f0fdf4;border-color:#bbf7d0;">
-            <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:#166534;margin-bottom:6px;">Signal Peptide</div>
-            <div style="font-size:1.15rem;font-weight:700;color:#15803d;">
-              {% if phob.get('has_signal_peptide') %}Yes{% else %}Not detected{% endif %}
-            </div>
-            {% if phob.get('has_signal_peptide') and phob.get('signal_peptide_end') %}
-            <div style="font-size:0.82rem;color:#166534;margin-top:4px;">Cleavage after residue {{ phob.signal_peptide_end }}</div>
+
+      {# ── Signal Peptide comparison card ── #}
+      {% set phob_sp = phob.get('has_signal_peptide') %}
+      {% set phob_sp_end = phob.get('signal_peptide_end', 0) %}
+      {% set sigp_sp = sigp.get('has_signal_peptide') %}
+      {% set sigp_sp_end = sigp.get('signal_peptide_end', 0) %}
+      {% set any_sp_result = phob or sigp %}
+      {% if any_sp_result %}
+      <div class="pipe-result-card" style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+          <div class="pipe-result-card-title" style="margin:0;">Signal Peptide</div>
+          <span class="pipe-info-tip" data-tip="Signal peptides are N-terminal sequences that direct proteins to the secretory pathway; they are cleaved off before the mature protein is released. Two independent predictors are shown side-by-side for cross-validation.">?</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+
+          {# Phobius SP column #}
+          <div style="border:1px solid var(--border);border-radius:8px;padding:14px;">
+            <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px;letter-spacing:.05em;">Phobius</div>
+            {% if phob %}
+              {% if phob_sp %}
+              <div style="font-size:1.1rem;font-weight:700;color:#15803d;">&#10003; Detected</div>
+              {% if phob_sp_end %}
+              <div style="font-size:0.85rem;color:#166534;margin-top:6px;">
+                <strong>Residues 1–{{ phob_sp_end }}</strong><br>
+                <span style="color:var(--text-light);">Cleavage after residue {{ phob_sp_end }}<br>Mature protein starts at residue {{ phob_sp_end + 1 }}</span>
+              </div>
+              {% endif %}
+              {% else %}
+              <div style="font-size:1rem;font-weight:600;color:var(--text-secondary);">Not detected</div>
+              {% endif %}
+            {% elif errs.get('phobius') %}
+            <div style="font-size:0.82rem;color:#dc2626;">Error: {{ errs.phobius[:80] }}</div>
+            {% else %}
+            <div style="font-size:0.82rem;color:var(--text-light);">Not run</div>
             {% endif %}
           </div>
+
+          {# SignalP SP column #}
+          <div style="border:1px solid var(--border);border-radius:8px;padding:14px;">
+            <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:10px;letter-spacing:.05em;">SignalP-4.1</div>
+            {% if sigp %}
+              {% if sigp_sp %}
+              <div style="font-size:1.1rem;font-weight:700;color:#15803d;">&#10003; Detected</div>
+              {% if sigp_sp_end %}
+              <div style="font-size:0.85rem;color:#166534;margin-top:6px;">
+                <strong>Residues 1–{{ sigp_sp_end }}</strong><br>
+                <span style="color:var(--text-light);">Cleavage after residue {{ sigp_sp_end }}<br>Mature protein starts at residue {{ sigp_sp_end + 1 }}</span>
+                {% if sigp.get('d_score') %}<br><span style="color:var(--text-light);">D-score: {{ "%.3f"|format(sigp.d_score) }}</span>{% endif %}
+              </div>
+              {% endif %}
+              {% else %}
+              <div style="font-size:1rem;font-weight:600;color:var(--text-secondary);">Not detected</div>
+              {% if sigp.get('d_score') %}<div style="font-size:0.78rem;color:var(--text-light);margin-top:4px;">D-score: {{ "%.3f"|format(sigp.d_score) }}</div>{% endif %}
+              {% endif %}
+            {% elif errs.get('signalp') %}
+            <div style="font-size:0.82rem;color:#dc2626;">Error: {{ errs.signalp[:80] }}</div>
+            {% else %}
+            <div style="font-size:0.82rem;color:var(--text-light);">Not run</div>
+            {% endif %}
+          </div>
+
+        </div>
+
+        {# Agreement indicator #}
+        {% if phob and sigp %}
+        {% set agree = (phob_sp == sigp_sp) %}
+        <div style="margin-top:12px;padding:8px 12px;border-radius:6px;font-size:0.82rem;
+                    background:{% if agree %}#f0fdf4{% else %}#fffbeb{% endif %};
+                    color:{% if agree %}#166534{% else %}#92400e{% endif %};
+                    border:1px solid {% if agree %}#bbf7d0{% else %}#fde68a{% endif %};">
+          {% if agree %}
+          &#10003; Both predictors agree: {% if phob_sp %}signal peptide present{% else %}no signal peptide{% endif %}.
+          {% else %}
+          &#9888; Predictors disagree — Phobius says {% if phob_sp %}Yes{% else %}No{% endif %}, SignalP says {% if sigp_sp %}Yes{% else %}No{% endif %}. Manual review recommended.
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {# ── Transmembrane Topology card (Phobius only) ── #}
+      {% if phob %}
+      <div class="pipe-result-card">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+          <div class="pipe-result-card-title" style="margin:0;">Transmembrane Topology</div>
+          <span class="pipe-info-tip" data-tip="Phobius simultaneously predicts transmembrane helices and signal peptides using a combined hidden Markov model. TM helices are hydrophobic segments (~20 aa) that span the lipid bilayer. The topology string encodes orientation (i=intracellular, o=extracellular) and helix positions.">?</span>
+          <span style="font-size:0.74rem;color:var(--text-light);margin-left:4px;">via Phobius (EBI)</span>
+        </div>
+
+        <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:{% if phob.get('tm_helices') %}16px{% else %}0{% endif %};">
           <div class="pipe-phob-card" style="background:#fef2f2;border-color:#fecaca;">
             <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:#991b1b;margin-bottom:6px;">TM Helices</div>
             <div style="font-size:1.15rem;font-weight:700;color:#dc2626;">{{ phob.get('tm_count', 0) }}</div>
@@ -382,22 +1095,23 @@
         </div>
 
         {% if phob.get('tm_helices') %}
-        <div style="margin-top:20px;">
-          <div style="font-size:0.75rem;font-weight:600;color:var(--text-light);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">TM Helix Coordinates</div>
-          <table class="pipe-table">
-            <thead><tr><th>#</th><th style="text-align:right;">Start</th><th style="text-align:right;">End</th><th style="text-align:right;">Length</th></tr></thead>
-            <tbody>
-            {% for h in phob.tm_helices %}
-            <tr>
-              <td>{{ loop.index }}</td>
-              <td style="text-align:right;font-family:monospace;">{{ h.start }}</td>
-              <td style="text-align:right;font-family:monospace;">{{ h.end }}</td>
-              <td style="text-align:right;font-size:0.85rem;color:var(--text-light);">{{ (h.end - h.start + 1) }} aa</td>
-            </tr>
-            {% endfor %}
-            </tbody>
-          </table>
-        </div>
+        <div style="font-size:0.75rem;font-weight:600;color:var(--text-light);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">TM Helix Residue Ranges</div>
+        <table class="pipe-table">
+          <thead><tr><th>#</th><th>Residue Range</th><th style="text-align:right;">Start</th><th style="text-align:right;">End</th><th style="text-align:right;">Length</th></tr></thead>
+          <tbody>
+          {% for h in phob.tm_helices %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td><strong style="font-family:monospace;">{{ h.start }}–{{ h.end }}</strong></td>
+            <td style="text-align:right;font-family:monospace;">{{ h.start }}</td>
+            <td style="text-align:right;font-family:monospace;">{{ h.end }}</td>
+            <td style="text-align:right;font-size:0.85rem;color:var(--text-light);">{{ (h.end - h.start + 1) }} aa</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% elif phob.get('tm_count', 0) == 0 %}
+        <div style="font-size:0.9rem;color:var(--text-secondary);">No transmembrane helices detected.</div>
         {% endif %}
       </div>
       {% elif errs.get('phobius') %}
@@ -407,29 +1121,239 @@
           <h4>Phobius prediction failed</h4>
           <p>{{ errs.phobius }}</p>
         </div>
-        {% if 'endpoint_unverified' in errs.phobius or '404' in errs.phobius or 'submission failed' in errs.phobius %}
-        <div class="pipe-endpoint-note" style="margin-top:12px;">
-          <strong>How to fix this</strong>
-          Run the EBI Phobius curl test:<br>
-          <code>curl -s -X POST "https://www.ebi.ac.uk/Tools/services/rest/phobius/run" -d "email=test@test.com&amp;sequence=MKTIIALSYIFCLVFA&amp;stype=protein" -D -</code><br>
-          Paste the HTTP status code and response body.
-        </div>
-        {% endif %}
       </div>
-      {% else %}
-      <div class="pipe-result-card"><p style="color:var(--text-light);font-size:0.9rem;">Phobius topology prediction was not run for this job.</p></div>
+      {% endif %}
+
+      {% if not phob and not sigp and not errs.get('phobius') and not errs.get('signalp') %}
+      <div class="pipe-result-card"><p style="color:var(--text-light);font-size:0.9rem;">Topology prediction was not run for this job.</p></div>
       {% endif %}
     </div>
 
-    <!-- ────────────── TAB: Figure ────────────── -->
-    {% if summary.get('figure_ok') %}
-    <div id="tab-figure" class="pipe-tab-panel">
+    {% if ret.get('resolved_proteins') %}
+    <!-- ────────────── TAB: Resolved Proteins ────────────── -->
+    <div id="tab-resolved" class="pipe-tab-panel">
       <div class="pipe-result-card">
-        <div class="pipe-result-card-title">Domain Architecture Figure</div>
-        <img src="/tools/protpipe/figure/{{ job_id }}" alt="Domain architecture" style="width:100%;max-width:900px;border-radius:6px;border:1px solid var(--border);">
-        <div style="margin-top:14px;">
-          <a class="pipe-dl-btn" href="/tools/protpipe/download/{{ job_id }}/svg">Download SVG</a>
+        <div class="pipe-result-card-title">Linked RefSeq Proteins</div>
+        <p style="font-size:0.84rem;color:var(--text-secondary);margin-bottom:14px;line-height:1.6;">
+          You submitted <code style="background:#f1f5f9;padding:1px 6px;border-radius:3px;">{{ ret.resolved_from }}</code>.
+          ProtPipe resolved this to <strong>{{ ret.resolved_acc }}</strong> and ran the full analysis on that protein.
+          Below are all RefSeq protein records linked to your accession via NCBI elink (XP_ predicted first, then NP_ curated RefSeq).
+          The one used for analysis is highlighted.
+        </p>
+        <div style="overflow-x:auto;">
+        <table class="pipe-table">
+          <thead><tr>
+            <th>Accession</th>
+            <th>Description</th>
+            <th style="text-align:right;">Length (aa)</th>
+            <th>Note</th>
+          </tr></thead>
+          <tbody>
+          {% for p in ret.resolved_proteins %}
+          <tr {% if p.accession == ret.resolved_acc %}style="background:#f0fdf4;"{% endif %}>
+            <td>
+              <a href="https://www.ncbi.nlm.nih.gov/protein/{{ p.accession }}" target="_blank" rel="noopener"
+                 style="font-family:monospace;font-size:0.82rem;background:{% if p.accession.startswith('XP_') %}#eff6ff;color:#1e3a8a{% elif p.accession.startswith('NP_') %}#f0fdf4;color:#166534{% else %}#f8fafc;color:#374151{% endif %};padding:2px 7px;border-radius:4px;text-decoration:none;">
+                {{ p.accession }}</a>
+            </td>
+            <td style="font-size:0.84rem;max-width:340px;">{{ p.description or '—' }}</td>
+            <td style="text-align:right;font-family:monospace;font-size:0.85rem;">{{ p.length }}</td>
+            <td style="font-size:0.75rem;">
+              {% if p.accession == ret.resolved_acc %}
+              <span style="background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:4px;font-weight:700;">▶ Analyzed</span>
+              {% elif p.accession.startswith('XP_') %}
+              <span style="color:#3b82f6;">Predicted RefSeq</span>
+              {% elif p.accession.startswith('NP_') %}
+              <span style="color:#059669;">Curated RefSeq</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
         </div>
+        <p style="font-size:0.77rem;color:var(--text-light);margin-top:12px;">
+          XP_ = predicted RefSeq protein (from genome annotation) · NP_ = manually curated RefSeq protein.
+          ProtPipe selects the longest XP_ record (or longest NP_ if no XP_ exists) for analysis.
+          To analyze a different isoform, re-submit that accession directly.
+        </p>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if false %}{# NetSurf removed — secondary structure is in SSPred tool #}
+    <div id="tab-netsurf" class="pipe-tab-panel">
+      {% if false %}
+      <div class="pipe-result-card" style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+          <div class="pipe-result-card-title" style="margin:0;">Secondary Structure Prediction</div>
+          <span class="pipe-info-tip" data-tip="NetSurfP-2.0 predicts per-residue secondary structure (H=alpha helix, E=beta strand, C=coil) and relative solvent accessibility (RSA) using deep learning on the protein sequence. Results are reported as contiguous structural regions.">?</span>
+          <span style="font-size:0.74rem;color:var(--text-light);margin-left:4px;">via NetSurfP-2.0 (DTU Health Tech)</span>
+        </div>
+
+        {# Summary counts #}
+        {% set h_count = ns_residues | selectattr('ss','equalto','H') | list | length %}
+        {% set e_count = ns_residues | selectattr('ss','equalto','E') | list | length %}
+        {% set c_count = ns_residues | selectattr('ss','equalto','C') | list | length %}
+        {% set total   = ns_residues | length %}
+        <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px;">
+          <div class="pipe-phob-card" style="background:#eff6ff;border-color:#bfdbfe;">
+            <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:#1e40af;margin-bottom:6px;">Alpha Helix (H)</div>
+            <div style="font-size:1.1rem;font-weight:700;color:#2563eb;">{{ h_count }} aa</div>
+            <div style="font-size:0.78rem;color:#3b82f6;margin-top:2px;">{{ (h_count / total * 100) | round(1) }}% of sequence</div>
+          </div>
+          <div class="pipe-phob-card" style="background:#f0fdf4;border-color:#bbf7d0;">
+            <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:#166534;margin-bottom:6px;">Beta Strand (E)</div>
+            <div style="font-size:1.1rem;font-weight:700;color:#059669;">{{ e_count }} aa</div>
+            <div style="font-size:0.78rem;color:#10b981;margin-top:2px;">{{ (e_count / total * 100) | round(1) }}% of sequence</div>
+          </div>
+          <div class="pipe-phob-card" style="background:#f8fafc;border-color:var(--border);">
+            <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:var(--text-light);margin-bottom:6px;">Coil (C)</div>
+            <div style="font-size:1.1rem;font-weight:700;color:var(--text);">{{ c_count }} aa</div>
+            <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:2px;">{{ (c_count / total * 100) | round(1) }}% of sequence</div>
+          </div>
+        </div>
+
+        {# Structural regions #}
+        {% if ns_anns %}
+        <div style="font-size:0.75rem;font-weight:600;color:var(--text-light);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">Structural Regions</div>
+        <table class="pipe-table">
+          <thead><tr><th>Type</th><th>Residue Range</th><th style="text-align:right;">Length</th></tr></thead>
+          <tbody>
+          {% for a in ns_anns %}
+          <tr>
+            <td>
+              {% if a.label == 'Alpha helix' %}<span style="color:#2563eb;font-weight:600;">&#9656; {{ a.label }}</span>
+              {% elif a.label == 'Beta strand' %}<span style="color:#059669;font-weight:600;">&#9644; {{ a.label }}</span>
+              {% else %}{{ a.label }}{% endif %}
+            </td>
+            <td><strong style="font-family:monospace;">{{ a.start }}–{{ a.end }}</strong></td>
+            <td style="text-align:right;color:var(--text-light);">{{ (a.end - a.start + 1) }} aa</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+
+        {# Per-residue sequence display #}
+        <div style="margin-top:20px;">
+          <div style="font-size:0.75rem;font-weight:600;color:var(--text-light);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Per-Residue Assignment</div>
+          <div style="font-family:monospace;font-size:0.78rem;line-height:1.8;word-break:break-all;background:#f8fafc;border:1px solid var(--border);border-radius:6px;padding:12px;">
+            {% for r in ns_residues %}
+            <span style="color:{% if r.ss=='H' %}#2563eb{% elif r.ss=='E' %}#059669{% else %}#94a3b8{% endif %};" title="pos {{ r.pos }}: {{ r.aa }} ({{ r.ss }}{% if r.rsa is not none %}, RSA={{ '%.2f'|format(r.rsa) }}{% endif %})">{{ r.aa }}</span>
+            {% endfor %}
+          </div>
+          <div style="margin-top:6px;font-size:0.74rem;color:var(--text-light);">
+            <span style="color:#2563eb;font-weight:600;">Blue</span> = alpha helix &nbsp;·&nbsp;
+            <span style="color:#059669;font-weight:600;">Green</span> = beta strand &nbsp;·&nbsp;
+            <span style="color:#94a3b8;">Gray</span> = coil. Hover residue for details.
+          </div>
+        </div>
+      </div>
+      {% elif errs.get('netsurf') %}
+      <div class="pipe-result-card">
+        <div class="pipe-result-card-title">NetSurfP-2.0</div>
+        <div class="pipe-error-diag">
+          <h4>Secondary structure prediction failed</h4>
+          <p>{{ errs.netsurf }}</p>
+        </div>
+      </div>
+      {% else %}
+      <div class="pipe-result-card"><p style="color:var(--text-light);font-size:0.9rem;">NetSurfP-2.0 was not run for this job.</p></div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- ────────────── TAB: Motifs ────────────── -->
+    {% if summary.get('motif_results') %}
+    {% set motif_results = summary.get('motif_results', []) %}
+    {% set seq = summary.get('retrieval', {}).get('sequence', '') %}
+    <div id="tab-motifs" class="pipe-tab-panel">
+      <div class="pipe-result-card">
+        <div class="pipe-result-card-title">Motif Search Results</div>
+        <p style="font-size:0.83rem;color:var(--text-secondary);margin-bottom:18px;">
+          Hits use 1-based residue numbering. A match shows that the pattern is present — it does not prove that the associated function is active in this protein.
+        </p>
+
+        {% for mr in motif_results %}
+        <div class="motif-query-block">
+          <div class="motif-query-header">
+            <span class="motif-query-name">{{ mr.name }}</span>
+            <span class="motif-query-pattern">{{ mr.pattern }}</span>
+            {% if mr.error %}
+            <span class="motif-hit-count-badge no-hits">Error</span>
+            {% elif mr.hit_count > 0 %}
+            <span class="motif-hit-count-badge has-hits">{{ mr.hit_count }} hit{{ 's' if mr.hit_count != 1 else '' }}</span>
+            {% else %}
+            <span class="motif-hit-count-badge no-hits">No hits</span>
+            {% endif %}
+          </div>
+
+          {% if mr.error %}
+          <div class="pipe-error-diag" style="font-size:0.83rem;">{{ mr.error }}</div>
+          {% elif mr.hit_count > 0 %}
+          <div style="overflow-x:auto;margin-bottom:12px;">
+            <table class="motif-hits-table">
+              <thead><tr><th>#</th><th>Start</th><th>End</th><th>Length</th><th>Matched sequence</th></tr></thead>
+              <tbody>
+                {% for h in mr.hits %}
+                <tr>
+                  <td>{{ loop.index }}</td>
+                  <td>{{ h.start }}</td>
+                  <td>{{ h.end }}</td>
+                  <td>{{ h.end - h.start + 1 }}</td>
+                  <td><span class="motif-hit-seq">{{ h.match }}</span></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <p style="font-size:0.83rem;color:var(--text-light);padding:8px 0;">No matches found in this sequence.</p>
+          {% endif %}
+        </div>
+        {% if not loop.last %}<hr style="border:none;border-top:1px solid var(--border);margin:16px 0;">{% endif %}
+        {% endfor %}
+
+        {% if seq %}
+        {# Build combined hit list for the sequence viewer #}
+        {% set all_hits = [] %}
+        {% for mr in motif_results %}{% for h in mr.hits %}{% set _ = all_hits.append(h) %}{% endfor %}{% endfor %}
+        {% if all_hits %}
+        <div style="margin-top:20px;">
+          <div class="pipe-result-card-title" style="margin-bottom:8px;">Sequence with highlighted motif locations</div>
+          <div id="pipe-motif-seq-viewer" class="seq-viewer">
+            {# Build viewer inline — 60 chars per line #}
+            {% set line_len = 60 %}
+            {# Build coverage dict: 1-based pos → hit_index #}
+            {%- set ns = namespace(coverage={}) -%}
+            {%- for h in all_hits -%}
+              {%- for pos in range(h.start, h.end + 1) -%}
+                {%- if pos | string not in ns.coverage -%}
+                  {%- set _ = ns.coverage.update({pos | string: loop.index0}) -%}
+                {%- endif -%}
+              {%- endfor -%}
+            {%- endfor -%}
+            {%- for chunk_start in range(0, seq | length, line_len) -%}
+              {%- set line_num = chunk_start + 1 -%}
+              <div class="seq-line" id="mseqline-{{ line_num }}">
+                <span class="seq-num">{{ line_num }}</span>
+                <span class="seq-text">
+                {%- for i in range(chunk_start, [chunk_start + line_len, seq | length] | min) -%}
+                  {%- set pos = i + 1 -%}
+                  {%- set aa = seq[i] -%}
+                  {%- if pos | string in ns.coverage -%}
+                    {%- set hi = ns.coverage[pos | string] % 5 + 1 -%}
+                    <span class="seq-hit-{{ hi }}" id="maa-{{ pos }}" title="Residue {{ pos }}">{{ aa }}</span>
+                  {%- else -%}{{ aa }}{%- endif -%}
+                {%- endfor -%}
+                </span>
+              </div>
+            {%- endfor -%}
+          </div>
+        </div>
+        {% endif %}
+        {% endif %}
       </div>
     </div>
     {% endif %}
@@ -491,6 +1415,15 @@ function poll() {
     .catch(() => { setTimeout(poll, 8000); });
 }
 
+function updateProgressBar(modules) {
+  const statuses = Object.values(modules);
+  if (!statuses.length) return;
+  const done = statuses.filter(s => s === 'complete' || s === 'error' || s === 'skipped').length;
+  const pct  = Math.round(done / statuses.length * 100);
+  const bar  = document.getElementById('progress-fill');
+  if (bar) bar.style.width = pct + '%';
+}
+
 function updateSteps(modules) {
   for (const [key, status] of Object.entries(modules)) {
     const dot  = document.getElementById('dot-' + key);
@@ -502,6 +1435,7 @@ function updateSteps(modules) {
       row.className = 'pipe-step ' + (stepClasses[status] || '');
     }
   }
+  updateProgressBar(modules);
 }
 
 // ── Tabs ─────────────────────────────────────────────────────
@@ -522,6 +1456,215 @@ function copyJobId() {
     el.style.opacity = '.65';
     setTimeout(() => { el.textContent = orig; el.style.opacity = ''; }, 2000);
   }).catch(() => {});
+}
+
+// ── Annotation sub-view switching ────────────────────────────
+function showAnnView(view) {
+  ['report','raw','pipeline'].forEach(v => {
+    const panel = document.getElementById('ann-view-' + v);
+    const btn   = document.getElementById('ann-view-btn-' + v);
+    if (panel) panel.style.display = v === view ? '' : 'none';
+    if (btn) {
+      btn.style.color       = v === view ? 'var(--accent)' : 'var(--text-secondary)';
+      btn.style.borderBottomColor = v === view ? 'var(--accent)' : 'transparent';
+      btn.style.fontWeight  = v === view ? '700' : '600';
+    }
+  });
+  if (view === 'report') updateSelCount();
+}
+
+// ── Annotation selection + figure generation ─────────────────
+function selectAllAnns(checked) {
+  document.querySelectorAll('.ann-check').forEach(cb => { cb.checked = checked; });
+  updateSelCount();
+}
+
+function selectSection(selector, checked) {
+  document.querySelectorAll(selector).forEach(cb => { cb.checked = checked; });
+  updateSelCount();
+}
+
+function updateSelCount() {
+  const total   = document.querySelectorAll('.ann-check').length;
+  const checked = document.querySelectorAll('.ann-check:checked').length;
+  const el = document.getElementById('ann-sel-count');
+  if (el) el.textContent = `${checked} of ${total} selected`;
+}
+
+document.addEventListener('DOMContentLoaded', () => updateSelCount());
+document.addEventListener('change', e => {
+  if (e.target.classList.contains('ann-check')) updateSelCount();
+});
+
+function generateFigure() {
+  const indices = [];
+  document.querySelectorAll('.ann-check:checked').forEach(cb => {
+    const idx = parseInt(cb.dataset.gidx);
+    if (!isNaN(idx)) indices.push(idx);
+  });
+
+  const btn      = document.getElementById('gen-fig-btn');
+  const loading  = document.getElementById('ann-figure-loading');
+  const errDiv   = document.getElementById('ann-figure-error');
+  const img      = document.getElementById('ann-figure-img');
+  const placeholder = document.getElementById('ann-figure-na');
+  const dlWrap   = document.getElementById('ann-figure-dl-wrap');
+
+  if (btn) btn.disabled = true;
+  if (loading) loading.style.display = 'block';
+  if (errDiv) errDiv.style.display = 'none';
+
+  const customCommands = (document.getElementById('custom-ann-input')?.value || '').trim();
+
+  fetch(`/tools/protpipe/figure/${jobId}/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ indices, custom_commands: customCommands }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (loading) loading.style.display = 'none';
+      if (btn) btn.disabled = false;
+      if (data.ok) {
+        if (img) { img.src = data.url; img.style.display = 'block'; }
+        if (placeholder) placeholder.style.display = 'none';
+        if (dlWrap) dlWrap.style.display = '';
+      } else {
+        if (errDiv) { errDiv.textContent = data.error || 'Figure generation failed'; errDiv.style.display = 'block'; }
+      }
+    })
+    .catch(e => {
+      if (loading) loading.style.display = 'none';
+      if (btn) btn.disabled = false;
+      if (errDiv) { errDiv.textContent = 'Network error: ' + e.message; errDiv.style.display = 'block'; }
+    });
+}
+
+// ── BLAST column toggle ───────────────────────────────────────
+function toggleBlastCol(colClass) {
+  document.querySelectorAll('.' + colClass).forEach(el => {
+    el.style.display = el.style.display === 'none' ? '' : 'none';
+  });
+}
+
+// ── Custom annotations toggle ─────────────────────────────────
+function toggleCustomAnns() {
+  const body  = document.getElementById('custom-ann-body');
+  const arrow = document.getElementById('custom-ann-arrow');
+  if (!body) return;
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  if (arrow) arrow.textContent = open ? '▼' : '▲';
+}
+
+// ── Figure tab help toggle ────────────────────────────────────
+function toggleFigHelp() {
+  const body = document.getElementById('fig-help-body');
+  const arrow = document.getElementById('fig-help-arrow');
+  if (!body) return;
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  if (arrow) arrow.style.transform = open ? '' : 'rotate(180deg)';
+}
+
+// ── BLAST table → canvas image ────────────────────────────────
+function generateBlastTableImage() {
+  const tbl = document.getElementById('blast-hits-table');
+  if (!tbl) return;
+
+  // Collect visible columns and rows
+  const headers = [];
+  tbl.querySelectorAll('thead th').forEach(th => {
+    if (th.style.display !== 'none') headers.push(th.textContent.trim());
+  });
+
+  const rows = [];
+  tbl.querySelectorAll('tbody tr').forEach(tr => {
+    const row = [];
+    tr.querySelectorAll('td').forEach(td => {
+      if (td.style.display !== 'none') row.push(td.textContent.trim());
+    });
+    if (row.length) rows.push(row);
+  });
+
+  if (!headers.length || !rows.length) return;
+
+  const PAD = 14, FONT_SIZE = 13, HEADER_H = 34, ROW_H = 30;
+  const COL_MIN = 60, COL_MAX = 260;
+
+  // Measure column widths
+  const canvas = document.getElementById('blast-canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.font = `bold ${FONT_SIZE}px system-ui, Arial, sans-serif`;
+  const colW = headers.map((h, ci) => {
+    let maxW = ctx.measureText(h).width + PAD * 2;
+    rows.forEach(r => {
+      if (r[ci]) {
+        ctx.font = `${FONT_SIZE}px system-ui, Arial, sans-serif`;
+        maxW = Math.max(maxW, ctx.measureText(r[ci]).width + PAD * 2);
+        ctx.font = `bold ${FONT_SIZE}px system-ui, Arial, sans-serif`;
+      }
+    });
+    return Math.min(COL_MAX, Math.max(COL_MIN, maxW));
+  });
+
+  const totalW = colW.reduce((a, b) => a + b, 0) + 2;
+  const totalH = HEADER_H + ROW_H * rows.length + 2;
+
+  canvas.width = totalW;
+  canvas.height = totalH;
+
+  // Background
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, totalW, totalH);
+
+  // Header row
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(0, 0, totalW, HEADER_H);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `bold ${FONT_SIZE}px system-ui, Arial, sans-serif`;
+  ctx.textBaseline = 'middle';
+  let x = 1;
+  headers.forEach((h, ci) => {
+    ctx.fillText(h, x + PAD, HEADER_H / 2, colW[ci] - PAD * 2);
+    x += colW[ci];
+  });
+
+  // Data rows
+  rows.forEach((row, ri) => {
+    const y = HEADER_H + ri * ROW_H;
+    ctx.fillStyle = ri % 2 === 0 ? '#f8fafc' : '#ffffff';
+    ctx.fillRect(0, y, totalW, ROW_H);
+    ctx.fillStyle = '#0f172a';
+    ctx.font = `${FONT_SIZE}px system-ui, Arial, sans-serif`;
+    let x2 = 1;
+    row.forEach((cell, ci) => {
+      const text = cell.length > 35 ? cell.slice(0, 33) + '…' : cell;
+      ctx.fillText(text, x2 + PAD, y + ROW_H / 2, colW[ci] - PAD * 2);
+      x2 += colW[ci];
+    });
+    // Row divider
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, y + ROW_H); ctx.lineTo(totalW, y + ROW_H); ctx.stroke();
+  });
+
+  // Border
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(0.5, 0.5, totalW - 1, totalH - 1);
+
+  // Title label
+  const title = `BLAST hits — ${jobId}`;
+  ctx.font = `10px system-ui, Arial, sans-serif`;
+  ctx.fillStyle = '#94a3b8';
+
+  document.getElementById('blast-canvas-wrap').style.display = 'block';
+  const dlLink = document.getElementById('blast-canvas-dl');
+  if (dlLink) {
+    dlLink.href = canvas.toDataURL('image/png');
+    dlLink.style.display = 'inline-block';
+  }
 }
 
 // ── Copy report ───────────────────────────────────────────────
