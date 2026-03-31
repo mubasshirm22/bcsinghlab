@@ -1,6 +1,7 @@
 import io
 import re
 import time
+import json
 import requests
 
 from services import ss
@@ -9,6 +10,11 @@ _WEBFACE_URL  = 'https://services.healthtech.dtu.dk/cgi-bin/webface2.cgi'
 _CONFIG_FILE  = '/var/www/services/services/NetSurfP-2.0/webface.cf'
 _POLL_SLEEP   = 20   # seconds between poll attempts
 _CANCEL_AFTER = 1500 # 25 minutes total
+
+# q8 → q3 mapping (NetSurf-P 2.0 8-state to 3-state)
+_Q8_TO_Q3 = {'H': 'H', 'G': 'H', 'I': 'H',  # helix types
+              'E': 'E', 'B': 'E',              # strand types
+              'C': 'C', 'S': 'C', 'T': 'C'}   # coil types
 
 
 def get(seq):
@@ -61,22 +67,21 @@ def get(seq):
 	print("NetSurf jobid:", jobid)
 
 	# ── 2. Poll until done ─────────────────────────────────────────────────
-	csv_text = _poll(jobid)
-	if csv_text is None:
+	result_data = _poll(jobid)
+	if result_data is None:
 		SS.pred   = "NetSurf job timed out or returned no result"
 		SS.conf   = SS.pred
 		SS.status = 2
 		print("NetSurf failed: poll timed out")
 		return SS
 
-	# ── 3. Parse CSV → pred string ─────────────────────────────────────────
-	pred = _parse_csv(csv_text, len(seq))
+	# ── 3. Parse result → pred string ──────────────────────────────────────
+	pred = _parse_result(result_data, len(seq))
 	if pred is None:
 		SS.pred   = "Could not parse NetSurf prediction output"
 		SS.conf   = SS.pred
 		SS.status = 2
-		print("NetSurf failed: CSV parse error")
-		print("NetSurf CSV (first 500):", csv_text[:500])
+		print("NetSurf failed: parse error. Data:", str(result_data)[:500])
 		return SS
 
 	SS.pred   = pred
@@ -108,8 +113,8 @@ def _extract_jobid(response):
 
 
 def _poll(jobid):
-	"""Poll the ajax endpoint until the result CSV is available.
-	Returns the CSV text, or None on timeout."""
+	"""Poll the ajax endpoint until results are available.
+	Returns parsed result data (dict or csv string), or None on timeout."""
 	deadline = time.time() + _CANCEL_AFTER
 	while time.time() < deadline:
 		time.sleep(_POLL_SLEEP)
@@ -118,6 +123,7 @@ def _poll(jobid):
 				_WEBFACE_URL,
 				params={'ajax': '1', 'jobid': jobid, 'wait': '20'},
 				timeout=60,
+				allow_redirects=True,
 			)
 		except requests.RequestException as e:
 			print("NetSurf poll error:", e)
@@ -126,31 +132,27 @@ def _poll(jobid):
 		text = r.text.strip()
 		print("NetSurf poll response (first 200):", text[:200])
 
-		# If it looks like CSV data with H/E/C column, we're done
+		# Try JSON first (new API format: {q8: "...", q8_prob: [...], ...})
+		if text.startswith('{') or text.startswith('['):
+			try:
+				data = json.loads(text)
+				if isinstance(data, list):
+					data = data[0]
+				if 'q8' in data or 'q3' in data:
+					return data
+			except (json.JSONDecodeError, IndexError, KeyError):
+				pass
+
+		# Fallback: CSV format
 		if _looks_like_csv(text):
-			return text
+			return {'_csv': text}
 
-		# webface2 sometimes returns a redirect URL to the actual result file
-		if r.status_code in (301, 302, 303):
-			loc = r.headers.get('Location', '')
-			if loc:
-				try:
-					r2 = requests.get(loc, timeout=60)
-					if _looks_like_csv(r2.text):
-						return r2.text
-				except Exception:
-					pass
-
-		# Still running — keep waiting
 	return None
 
 
 def _looks_like_csv(text):
-	"""Heuristic: NetSurf CSV has lines with comma-separated fields,
-	and the q3 column contains H, E, or C."""
 	if not text or len(text) < 20:
 		return False
-	# Must have at least one non-comment line with H, E, or C in expected position
 	for line in text.splitlines():
 		if line.startswith('#') or not line.strip():
 			continue
@@ -160,12 +162,26 @@ def _looks_like_csv(text):
 	return False
 
 
-def _parse_csv(csv_text, expected_len):
-	"""Parse NetSurf-P 2.0 CSV into an H/E/C prediction string.
+def _parse_result(data, expected_len):
+	"""Parse NetSurf result dict (JSON) or CSV into an H/E/C prediction string."""
+	# JSON path: use q3 if available, else convert q8 → q3
+	if isinstance(data, dict) and '_csv' not in data:
+		q_str = data.get('q3') or data.get('q8', '')
+		if not q_str:
+			return None
+		if data.get('q8') and not data.get('q3'):
+			# convert 8-state to 3-state
+			pred = ''.join(_Q8_TO_Q3.get(c.upper(), 'C') for c in q_str)
+		else:
+			pred = q_str.upper()
+		pred = ''.join(c if c in ('H', 'E', 'C') else 'C' for c in pred)
+		if abs(len(pred) - expected_len) > 5:
+			print(f"NetSurf length mismatch: expected {expected_len}, got {len(pred)}")
+			return None
+		return pred
 
-	CSV columns (0-indexed):
-	  0=id, 1=n (1-based residue index), 2=seq, 3=q3, 4=q8, 5=rsa, ...
-	"""
+	# CSV fallback
+	csv_text = data.get('_csv', '') if isinstance(data, dict) else ''
 	residues = {}
 	for line in csv_text.splitlines():
 		line = line.strip()
@@ -175,23 +191,17 @@ def _parse_csv(csv_text, expected_len):
 		if len(parts) < 4:
 			continue
 		try:
-			n   = int(parts[1].strip())
-			q3  = parts[3].strip().upper()
+			n  = int(parts[1].strip())
+			q3 = parts[3].strip().upper()
 		except (ValueError, IndexError):
 			continue
 		if q3 in ('H', 'E', 'C'):
 			residues[n] = q3
-
 	if not residues:
 		return None
-
-	# Build string from residue 1 … max_index
 	max_idx = max(residues.keys())
 	pred = ''.join(residues.get(i, 'C') for i in range(1, max_idx + 1))
-
-	# If parsed length doesn't match expected, something went wrong
 	if abs(len(pred) - expected_len) > 5:
 		print(f"NetSurf length mismatch: expected {expected_len}, got {len(pred)}")
 		return None
-
 	return pred
