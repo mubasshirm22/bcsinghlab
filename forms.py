@@ -40,8 +40,8 @@ class SubmissionForm(FlaskForm):
 	submitbtn = SubmitField('Submit')
 	
 	#Override default validate
-	def validate(self):
-		if not FlaskForm.validate(self):
+	def validate(self, extra_validators=None):
+		if not FlaskForm.validate(self, extra_validators=extra_validators):
 			return False
 		
 		validated = True
