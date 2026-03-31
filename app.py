@@ -2,7 +2,7 @@ import json
 import time
 import os
 from lxml import html
-from services import ss, psi, jpred, raptorx, pss, sable, sspro, yaspin, phdpsi, profsec, predator, netsurf, emailtools, htmlmaker, batchtools, maketable
+from services import ss, psi, jpred, raptorx, pss, sable, sspro, yaspin, phdpsi, profsec, predator, netsurf, emailtools, htmlmaker, batchtools
 from datetime import datetime
 
 from forms import SubmissionForm
