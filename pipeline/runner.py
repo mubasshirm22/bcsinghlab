@@ -527,7 +527,7 @@ def _running_summary_for_module(key: str) -> str:
         "uniprot_features": "Fetching curated feature annotations from UniProtKB.",
         "smart": "Submitting the sequence to SMART.",
         "interproscan": "Submitting the sequence to InterProScan.",
-        "coils": "Submitting the sequence to LUPAS for coiled-coil prediction.",
+        "coils": "Submitting the sequence to Waggawagga for coiled-coil prediction.",
         "blast": "Submitting the sequence to NCBI BLAST.",
         "disorderpred": "Running DisorderPred companion analysis on the resolved sequence.",
         "sspred_companion": "Running the SSPred companion consensus bundle on the resolved sequence.",

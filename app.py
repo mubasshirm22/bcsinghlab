@@ -195,9 +195,9 @@ def _fetch_protsuite_service_health():
 			"note": "Curated UniProt positional features for domains, motifs, regions, and sites",
 		},
 		"Coils": {
-			"status": _probe_http_service("https://npsa-prabi.ibcp.fr/cgi-bin/primanal_lupas.pl", ok_statuses=(200, 301, 302, 405)),
+			"status": _probe_http_service("https://waggawagga.motorprotein.de/"),
 			"tier": "core",
-			"note": "LUPAS coiled-coil prediction",
+			"note": "Waggawagga coiled-coil prediction (Marcoil/Multicoil2/Ncoils/Paircoil2)",
 		},
 		"SMART": {
 			"status": _probe_http_service("https://smart.embl.de/"),

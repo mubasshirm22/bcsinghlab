@@ -115,7 +115,7 @@ def merge(
     _collect(uniprot_result,      "UniProtKB")
     _collect(smart_result,        "SMART")
     _collect(interproscan_result, "InterProScan")
-    _collect(coils_result,        "LUPAS")
+    _collect(coils_result,        "Waggawagga")
 
     # ------------------------------------------------------------------
     # Step 1 — Validate (drop malformed coordinates only)

@@ -100,22 +100,15 @@ class ProtPipeParserTests(unittest.TestCase):
         self.assertEqual(anns[2]["feature_type"], "binding_site")
         self.assertEqual(anns[4]["feature_type"], "low_complexity")
 
-    def test_coils_html_parser(self):
-        probs = coils._parse_probabilities(read_text("protpipe", "coils.html"))
-        self.assertEqual(len(probs), 20)
-        regions = coils._find_regions(probs)
-        self.assertEqual(regions, [(4, 19)])
-
-    def test_coils_result_link_extraction(self):
-        html = read_text("protpipe", "coils_running.html")
-        self.assertIn("/tmp/adc82ae28816.lupas", coils._extract_result_link(html))
-
-    def test_coils_result_text_parser(self):
-        probs = coils._parse_probabilities(read_text("protpipe", "coils_result.txt"))
-        self.assertIsNotNone(probs)
-        self.assertEqual(len(probs), 146)
-        self.assertGreater(probs[127], 0.01)
-        self.assertGreater(probs[140], 0.07)
+    def test_coils_region_regex(self):
+        # coils.py now scrapes Waggawagga's result HTML for "<tool>_<tool>_<start>-<end>"
+        # divs (see module docstring); the old LUPAS probability-table parser is gone.
+        sample = "<div id=\"marcoil_marcoil_5-86\">...<div id=\"paircoil2_paircoil2_1-88\">"
+        matches = coils._REGION_RE.findall(sample)
+        self.assertEqual(
+            [(m[0], int(m[1]), int(m[2])) for m in matches],
+            [("marcoil", 5, 86), ("paircoil2", 1, 88)],
+        )
 
     def test_retrieval_auto_detect(self):
         self.assertEqual(retrieval._detect_input_type("P04637"), "uniprot")
