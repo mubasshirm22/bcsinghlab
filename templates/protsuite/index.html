@@ -1,5 +1,5 @@
 {% extends "lab/lab_base.html" %}
-{% block title %}ProtPipe — Protein Analysis Pipeline{% endblock %}
+{% block title %}ProtSuite — Protein Analysis Pipeline{% endblock %}
 
 {% block content %}
 
@@ -10,10 +10,10 @@
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
           <span style="background:rgba(255,255,255,.15);color:#fff;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:4px 12px;border-radius:999px;">Beta Tool</span>
         </div>
-        <h1>ProtPipe</h1>
+        <h1>ProtSuite</h1>
         <p>Automated protein analysis pipeline — submit a sequence or accession and receive homology search, domain annotation, signal peptide and transmembrane topology, and a domain architecture figure.</p>
       </div>
-      <a href="/tools/protpipe/archive" style="align-self:flex-start;padding:9px 18px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);border-radius:7px;color:#fff;font-size:0.85rem;font-weight:600;white-space:nowrap;text-decoration:none;">
+      <a href="/tools/protsuite/archive" style="align-self:flex-start;padding:9px 18px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);border-radius:7px;color:#fff;font-size:0.85rem;font-weight:600;white-space:nowrap;text-decoration:none;">
         Job Archive →
       </a>
     </div>
@@ -30,7 +30,7 @@
     <div class="pipe-validation-msg error" style="margin-bottom:20px;">{{ error }}</div>
     {% endif %}
 
-    <form method="POST" action="/tools/protpipe" id="pipe-form">
+    <form method="POST" action="/tools/protsuite" id="pipe-form" enctype="multipart/form-data">
 
       <!-- ── 1. Input type ─────────────────────────────────────── -->
       <div class="pipe-form-section">
@@ -54,13 +54,20 @@
           </label>
         </div>
         <p id="input-hint" style="font-size:0.8rem;color:var(--text-light);margin-top:10px;margin-bottom:0;">
-          Paste almost anything protein-related and ProtPipe will choose the right path automatically: FASTA, raw protein sequence, UniProt accession, NCBI protein accession, transcript, contig, or gene ID.
+          Paste almost anything protein-related and ProtSuite will choose the right path automatically: FASTA, raw protein sequence, UniProt accession, NCBI protein accession, transcript, contig, or gene ID.
         </p>
       </div>
 
       <!-- ── 2. Sequence input ──────────────────────────────────── -->
       <div class="pipe-form-section">
         <div class="pipe-form-section-title">2 — Sequence or Accession</div>
+
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:0.85rem;cursor:pointer;">
+          <input type="checkbox" id="batch-mode-toggle" onchange="onBatchModeToggle()">
+          Batch mode — submit multiple sequences/accessions at once (up to 25)
+        </label>
+
+        <div id="single-input-section">
         <textarea id="seq-input" name="sequence_input"
           class="pipe-textarea" rows="7"
           placeholder="Paste a FASTA sequence or raw amino acid string here…"
@@ -79,6 +86,22 @@
           <label class="pipe-file-btn" for="fasta-file">Upload .fasta file</label>
           <input type="file" id="fasta-file" accept=".fasta,.fa,.txt" style="display:none;" onchange="onFileUpload(this)">
           <span id="file-name-display" style="font-size:0.8rem;color:var(--text-light);"></span>
+        </div>
+        </div>
+
+        <div id="batch-input-section" style="display:none;">
+          <textarea id="batch-input" name="batch_input"
+            class="pipe-textarea" rows="7"
+            placeholder="Paste multiple FASTA records (>header lines), or a comma/newline-separated list of accessions…"
+          ></textarea>
+          <div class="pipe-file-upload-row" style="margin-top:12px;">
+            <label class="pipe-file-btn" for="batch-files">Upload FASTA file(s)</label>
+            <input type="file" id="batch-files" name="batch_files" accept=".fasta,.fa,.txt" multiple style="display:none;" onchange="onBatchFilesChange(this)">
+            <span id="batch-file-name-display" style="font-size:0.8rem;color:var(--text-light);"></span>
+          </div>
+          <p style="font-size:0.78rem;color:var(--text-light);margin-top:10px;">
+            Pasted text and uploaded files are combined. Each FASTA record or each comma/newline-separated accession becomes its own job. Maximum 25 entries per batch.
+          </p>
         </div>
       </div>
 
@@ -195,7 +218,7 @@
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
             <div>
               <strong>Attachable companion analyses</strong><br>
-              <span style="font-size:0.8rem;color:var(--text-secondary);">These pull focused outputs from the lab’s other tools directly into the ProtPipe report. Keep them off for the lightest workflow, or enable them when you want disorder and secondary-structure context in one place.</span>
+              <span style="font-size:0.8rem;color:var(--text-secondary);">These pull focused outputs from the lab’s other tools directly into the ProtSuite report. Keep them off for the lightest workflow, or enable them when you want disorder and secondary-structure context in one place.</span>
             </div>
           </div>
           <div class="pipe-analysis-grid" style="margin-top:14px;">
@@ -203,7 +226,7 @@
               <input type="checkbox" name="run_disorderpred">
               <div>
                 <div class="opt-title">DisorderPred companion</div>
-                <div class="opt-desc">Runs the DisorderPred stack on the resolved sequence and adds disordered-region calls, low-complexity segments, and IUPred3 / ANCHOR2 comparison panels to the ProtPipe report.</div>
+                <div class="opt-desc">Runs the DisorderPred stack on the resolved sequence and adds disordered-region calls, low-complexity segments, and IUPred3 / ANCHOR2 comparison panels to the ProtSuite report.</div>
                 <span class="opt-status opt-status-live">Companion</span>
                 <span style="font-size:0.72rem;color:var(--text-light);margin-left:6px;">~1–4 min</span>
               </div>
@@ -244,8 +267,8 @@
                 <input type="checkbox" name="run_signalp">
                 <div>
                   <div class="opt-title">Signal Peptide <span style="font-weight:400;color:var(--text-light);">(SignalP)</span></div>
-                  <div class="opt-desc">Independent signal peptide cross-check for Phobius. Keep disabled unless the upstream endpoint comes back.</div>
-                  <span class="opt-status opt-status-beta">Unavailable</span>
+                  <div class="opt-desc">Independent signal peptide cross-check for Phobius, via DTU's SignalP-5.0 service.</div>
+                  <span class="opt-status opt-status-beta">Beta</span>
                 </div>
               </label>
             </div>
@@ -275,7 +298,7 @@
           </div>
         </div>
         <div id="run-plan-note" class="pipe-endpoint-note" style="margin-top:14px;background:#f8fafc;">
-          ProtPipe now prioritizes a lighter default path. Retrieval and physicochemical properties populate first; slower or brittle modules are optional.
+          ProtSuite now prioritizes a lighter default path. Retrieval and physicochemical properties populate first; slower or brittle modules are optional.
         </div>
       </div>
 
@@ -439,7 +462,7 @@ const moduleServiceKeys = {
 };
 
 const hints = {
-  auto:      'Recommended. ProtPipe auto-detects FASTA/raw protein sequence, UniProt accessions, NCBI protein accessions, transcripts, WGS contigs, and numeric gene IDs.',
+  auto:      'Recommended. ProtSuite auto-detects FASTA/raw protein sequence, UniProt accessions, NCBI protein accessions, transcripts, WGS contigs, and numeric gene IDs.',
   raw_fasta: 'Accepts raw amino acid string (40–5000 residues) or a single FASTA record. Spaces and newlines are ignored.',
   uniprot:   'Enter a UniProt accession, e.g. P04637 (TP53), Q9Y2H9, or A0A000ABC1.',
   ncbi:      'Enter any NCBI accession. Protein (NP_, XP_, WP_) → fetched directly. mRNA/transcript (NM_, XM_), WGS contig (e.g. GAJC01020720.1), or gene ID (numeric) → auto-resolved to linked protein records via NCBI elink. Top candidate is analyzed; all candidates shown in Resolved Proteins tab.',
@@ -525,7 +548,38 @@ function clearValidation() {
   el.textContent = '';
 }
 
+function onBatchModeToggle() {
+  const isBatch = document.getElementById('batch-mode-toggle').checked;
+  document.getElementById('single-input-section').style.display = isBatch ? 'none' : '';
+  document.getElementById('batch-input-section').style.display = isBatch ? '' : 'none';
+  document.getElementById('submit-btn').textContent = isBatch ? 'Submit Batch →' : 'Run Analysis →';
+}
+
+function onBatchFilesChange(input) {
+  const display = document.getElementById('batch-file-name-display');
+  display.textContent = input.files.length ? `${input.files.length} file(s) selected` : '';
+}
+
+function validateBatchForm() {
+  const text = document.getElementById('batch-input').value.trim();
+  const files = document.getElementById('batch-files').files;
+  if (!text && !files.length) {
+    showValidation('error', 'Paste sequences/accessions or upload at least one file for the batch.');
+    return false;
+  }
+  return true;
+}
+
 function validateForm() {
+  const isBatch = document.getElementById('batch-mode-toggle').checked;
+  const form = document.getElementById('pipe-form');
+  if (isBatch) {
+    if (!validateBatchForm()) return false;
+    form.action = '/tools/protsuite/batch';
+    return true;
+  }
+  form.action = '/tools/protsuite';
+
   const raw = document.getElementById('seq-input').value.trim();
   if (!raw) {
     showValidation('error', 'Please enter a sequence or accession before submitting.');
@@ -638,7 +692,7 @@ function runtimeHintForModules(selected) {
     return 'Likely 5-15 minutes depending on remote queues. SSPred companion waits on multiple external predictors.';
   }
   if (selected.includes('DisorderPred')) {
-    return 'Usually the main ProtPipe annotations appear quickly; DisorderPred companion may take a few extra minutes.';
+    return 'Usually the main ProtSuite annotations appear quickly; DisorderPred companion may take a few extra minutes.';
   }
   if (selected.some(name => ['BLAST', 'SMART', 'SignalP'].includes(name))) {
     return 'Likely 3-10 minutes depending on remote queues.';
@@ -669,7 +723,7 @@ function updateRunPlan() {
     if (degraded.length) {
       noteEl.innerHTML = `<strong>Heads up:</strong> ${degraded.join(', ')} is currently reported as degraded or offline. The run will still continue, but those outputs may fail or take longer.`;
     } else {
-      noteEl.innerHTML = 'ProtPipe keeps a lighter default path. Retrieval and physicochemical properties populate first; companion analyses and slower modules are optional add-ons.';
+      noteEl.innerHTML = 'ProtSuite keeps a lighter default path. Retrieval and physicochemical properties populate first; companion analyses and slower modules are optional add-ons.';
     }
   }
 }
@@ -680,7 +734,7 @@ function toggleMotifBody(chk) {
   if (body) body.classList.toggle('open', chk.checked);
 }
 
-// Live preview of custom motif pattern in ProtPipe form
+// Live preview of custom motif pattern in ProtSuite form
 function motifCustomPreview() {
   const val = document.getElementById('motif-custom-pattern')?.value.trim();
   const wrap = document.getElementById('motif-custom-preview-wrap');

@@ -1,5 +1,5 @@
 {% extends "lab/lab_base.html" %}
-{% block title %}ProtPipe Results — {{ job_id }}{% endblock %}
+{% block title %}ProtSuite Results — {{ job_id }}{% endblock %}
 
 {% block content %}
 
@@ -27,8 +27,8 @@
         </div>
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-self:flex-start;">
-        <a href="/tools/protpipe" style="padding:9px 18px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);border-radius:7px;color:#fff;font-size:0.85rem;font-weight:600;text-decoration:none;">New Analysis</a>
-        <a href="/tools/protpipe/archive" style="padding:9px 18px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);border-radius:7px;color:#fff;font-size:0.85rem;font-weight:600;text-decoration:none;">Archive</a>
+        <a href="/tools/protsuite" style="padding:9px 18px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);border-radius:7px;color:#fff;font-size:0.85rem;font-weight:600;text-decoration:none;">New Analysis</a>
+        <a href="/tools/protsuite/archive" style="padding:9px 18px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);border-radius:7px;color:#fff;font-size:0.85rem;font-weight:600;text-decoration:none;">Archive</a>
         {% if is_complete %}
         <a href="/tools/structmap/{{ job_id }}" style="padding:9px 18px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);border-radius:7px;color:#fff;font-size:0.85rem;font-weight:600;text-decoration:none;">Open in StructMap</a>
         {% endif %}
@@ -71,7 +71,7 @@
           ('interproscan',  'InterProScan (integrative)',        'EBI InterProScan — slowest, most comprehensive (~5–8 min)'),
           ('coils',         'Coiled-coil prediction (LUPAS)',    'NPSA-PRABI LUPAS — heptad-repeat coiled-coil regions (~5–10 sec)'),
           ('disorderpred',  'DisorderPred companion',            'Optional disorder and low-complexity view with IUPred3 / ANCHOR2 comparisons'),
-          ('sspred_companion', 'SSPred consensus companion',     'Optional secondary-structure consensus bundled into the ProtPipe report'),
+          ('sspred_companion', 'SSPred consensus companion',     'Optional secondary-structure consensus bundled into the ProtSuite report'),
           ('annotations',   'Merge & deduplicate annotations',   'Combines all sources into one clean annotation set'),
           ('figures',       'Domain architecture figure',        'PROSITE MyDomains figure (or SVG fallback)'),
         ] %}
@@ -156,7 +156,7 @@
         {% if _pret %}
         Retrieval is complete. Additional annotations will appear as the remote tools finish.
         {% else %}
-        ProtPipe is validating your input and fetching the primary sequence now. This section updates automatically as soon as the first files are written.
+        ProtSuite is validating your input and fetching the primary sequence now. This section updates automatically as soon as the first files are written.
         {% endif %}
       </div>
       <div id="partial-runtime-note" {% if not _preq.get('runtime_hint') %}style="display:none;margin-top:6px;font-size:0.8rem;color:var(--text-secondary);" {% else %}style="margin-top:6px;font-size:0.8rem;color:var(--text-secondary);" {% endif %}>{{ _preq.get('runtime_hint', '') }}</div>
@@ -165,7 +165,7 @@
 
     {% if service_status %}
     <div class="pipe-result-card" style="margin-top:20px;margin-bottom:18px;">
-      <div class="pipe-result-card-title">ProtPipe Service Status</div>
+      <div class="pipe-result-card-title">ProtSuite Service Status</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;">
         {% for name, item in service_status.items() %}
         <div style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:#fff;">
@@ -213,10 +213,10 @@
     <!-- Download bar -->
     <div class="pipe-download-bar">
       <span>Download:</span>
-      <a class="pipe-dl-btn" href="/tools/protpipe/download/{{ job_id }}/json">JSON report</a>
-      <a class="pipe-dl-btn" href="/tools/protpipe/download/{{ job_id }}/txt">Text summary</a>
+      <a class="pipe-dl-btn" href="/tools/protsuite/download/{{ job_id }}/json">JSON report</a>
+      <a class="pipe-dl-btn" href="/tools/protsuite/download/{{ job_id }}/txt">Text summary</a>
       {% if summary.get('figure_ok') %}
-      <a class="pipe-dl-btn" href="/tools/protpipe/download/{{ job_id }}/figure">Domain figure</a>
+      <a class="pipe-dl-btn" href="/tools/protsuite/download/{{ job_id }}/figure">Domain figure</a>
       {% endif %}
       <a class="pipe-dl-btn" href="/tools/structmap/{{ job_id }}">Open StructMap</a>
       <button class="pipe-copy-btn" onclick="copyReport()" style="margin-left:auto;" id="copy-btn">Copy report</button>
@@ -382,9 +382,9 @@
       {% if summary.get('figure_ok') %}
       <div class="pipe-result-card">
         <div class="pipe-result-card-title">Domain Architecture</div>
-        <img src="/tools/protpipe/figure/{{ job_id }}" alt="Domain architecture" style="width:100%;max-width:800px;border-radius:6px;border:1px solid var(--border);">
+        <img src="/tools/protsuite/figure/{{ job_id }}" alt="Domain architecture" style="width:100%;max-width:800px;border-radius:6px;border:1px solid var(--border);">
         <div style="margin-top:10px;display:flex;gap:8px;">
-          <a class="pipe-dl-btn" href="/tools/protpipe/download/{{ job_id }}/figure">Download figure</a>
+          <a class="pipe-dl-btn" href="/tools/protsuite/download/{{ job_id }}/figure">Download figure</a>
           <button class="pipe-btn-ghost" onclick="showTab('figure', document.getElementById('tab-btn-figure'))">Full view →</button>
         </div>
       </div>
@@ -481,7 +481,7 @@
           {% elif errs.get('disorderpred') %}
           <div class="pipe-endpoint-note">{{ errs.get('disorderpred') }}</div>
           {% else %}
-          <p style="font-size:0.84rem;color:var(--text-light);">DisorderPred was not selected for this ProtPipe run.</p>
+          <p style="font-size:0.84rem;color:var(--text-light);">DisorderPred was not selected for this ProtSuite run.</p>
           {% endif %}
         </div>
 
@@ -518,7 +518,7 @@
           {% elif errs.get('sspred_companion') %}
           <div class="pipe-endpoint-note">{{ errs.get('sspred_companion') }}</div>
           {% else %}
-          <p style="font-size:0.84rem;color:var(--text-light);">SSPred consensus was not selected for this ProtPipe run.</p>
+          <p style="font-size:0.84rem;color:var(--text-light);">SSPred consensus was not selected for this ProtSuite run.</p>
           {% endif %}
         </div>
       </div>
@@ -741,19 +741,27 @@
          ════════════════════════════════════════════════════════════ #}
       <div id="ann-view-report">
 
+        {# Renderer toggle: PROSITE/MyDomains (default) vs IBS.js (interactive) #}
+        <div style="display:flex;gap:8px;margin-bottom:16px;">
+          <button id="renderer-tab-prosite" class="pipe-btn-ghost" style="font-weight:700;border-color:var(--accent);color:var(--accent);" onclick="showRendererTab('prosite')">PROSITE (MyDomains)</button>
+          <button id="renderer-tab-ibs" class="pipe-btn-ghost" onclick="showRendererTab('ibs')">IBS.js (interactive)</button>
+        </div>
+
+        <div id="renderer-prosite-panel">
+
         {# Figure area #}
         <div id="ann-figure-loading" style="display:none;padding:10px 0;color:var(--text-light);font-size:0.88rem;">Generating figure…</div>
         <div id="ann-figure-error" style="display:none;margin-bottom:12px;" class="pipe-error-diag"></div>
         {% if summary.get('figure_ok') %}
         <div style="margin-bottom:18px;">
           <img id="ann-figure-img"
-               src="/tools/protpipe/figure/{{ job_id }}"
+               src="/tools/protsuite/figure/{{ job_id }}"
                alt="Domain architecture"
                style="width:100%;max-width:900px;border-radius:8px;border:1px solid var(--border);display:block;"
                onerror="this.style.display='none';document.getElementById('ann-figure-na').style.display='block';">
           <div id="ann-figure-na" style="display:none;color:var(--text-light);font-size:0.85rem;padding:6px 0;">Figure could not be loaded.</div>
           <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <a id="ann-figure-dl" class="pipe-dl-btn" href="/tools/protpipe/download/{{ job_id }}/figure">Download figure</a>
+            <a id="ann-figure-dl" class="pipe-dl-btn" href="/tools/protsuite/download/{{ job_id }}/figure">Download figure</a>
             {% if summary.get('figure_renderer') %}<span style="font-size:0.72rem;color:var(--text-light);">{{ summary.figure_renderer }}</span>{% endif %}
           </div>
         </div>
@@ -763,7 +771,7 @@
         </div>
         <img id="ann-figure-img" src="" alt="" style="display:none;width:100%;max-width:900px;border-radius:8px;border:1px solid var(--border);margin-bottom:8px;">
         <div style="display:none;margin-bottom:16px;" id="ann-figure-dl-wrap">
-          <a id="ann-figure-dl" class="pipe-dl-btn" href="/tools/protpipe/download/{{ job_id }}/figure">Download figure</a>
+          <a id="ann-figure-dl" class="pipe-dl-btn" href="/tools/protsuite/download/{{ job_id }}/figure">Download figure</a>
         </div>
         {% endif %}
 
@@ -774,6 +782,7 @@
               <span style="font-size:0.8rem;color:#94a3b8;font-weight:500;">Select annotations:</span>
               <button class="pipe-btn-ghost" style="font-size:0.75rem;padding:4px 10px;color:#e2e8f0;border-color:#475569;" onclick="selectAllAnns(true)">All</button>
               <button class="pipe-btn-ghost" style="font-size:0.75rem;padding:4px 10px;color:#e2e8f0;border-color:#475569;" onclick="selectAllAnns(false)">None</button>
+              <button class="pipe-btn-ghost" style="font-size:0.75rem;padding:4px 10px;color:#e2e8f0;border-color:#475569;" onclick="smartSelectAnnotations()" title="Domains + signal peptide/TM + a few top functional sites — a clean, non-cluttered default">Smart Select</button>
               <span style="font-size:0.8rem;color:#64748b;" id="ann-sel-count">0 selected</span>
             </div>
             <button style="padding:10px 28px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:0.95rem;font-weight:700;cursor:pointer;letter-spacing:0.01em;box-shadow:0 2px 10px rgba(37,99,235,0.4);transition:background 0.15s;" id="gen-fig-btn" onmouseover="this.style.background='#1d4ed8'" onmouseout="this.style.background='#2563eb'" onclick="generateFigure()">
@@ -859,6 +868,38 @@
           </div>
         </div>
 
+        </div> {# /renderer-prosite-panel #}
+
+        {# ════════════════════════════════════════════════════════════
+           IBS.js interactive renderer panel (hidden by default)
+           ════════════════════════════════════════════════════════════ #}
+        <div id="renderer-ibs-panel" style="display:none;">
+          <div id="ibs-unavailable-notice" style="display:none;color:#9a3412;font-size:0.85rem;margin-bottom:14px;padding:10px 14px;background:#fff7ed;border:1px dashed #fed7aa;border-radius:6px;">
+            IBS.js library not found. Place <code>IbsCharts.js</code> in <code>static/js/vendor/ibs/</code> to enable this renderer.
+          </div>
+          <div id="ibs-builder-wrap">
+            <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:16px;">
+              <div id="ibs-canvas-host" style="flex:1 1 560px;min-width:320px;min-height:160px;background:#fff;border:1px solid var(--border);border-radius:8px;overflow:auto;"></div>
+              <div style="flex:0 0 260px;background:#1e293b;border-radius:10px;padding:14px 16px;">
+                <div style="font-size:0.8rem;color:#94a3b8;font-weight:600;margin-bottom:10px;">Feature type styling</div>
+                <div id="ibs-style-controls"></div>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">
+              <button style="padding:10px 24px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:0.9rem;font-weight:700;cursor:pointer;" onclick="buildIbsDiagram()">▶&nbsp; Build Diagram</button>
+              <span style="font-size:0.78rem;color:var(--text-light);">Uses the annotations checked above (in the PROSITE tab). Editable: drag, rotate, and reposition shapes directly on the canvas.</span>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+              <button class="pipe-btn-ghost" onclick="downloadIbs('svg')">Download SVG</button>
+              <button class="pipe-btn-ghost" onclick="downloadIbs('png')">Download PNG</button>
+              <button class="pipe-btn-ghost" onclick="downloadIbs('jpg')">Download JPG</button>
+              <button class="pipe-btn-ghost" onclick="downloadIbs('json')">Download JSON</button>
+              <button style="padding:8px 18px;background:#059669;color:#fff;border:none;border-radius:8px;font-size:0.85rem;font-weight:700;cursor:pointer;" onclick="saveIbsToJob()">Save Figure to Job</button>
+              <span id="ibs-save-status" style="font-size:0.78rem;color:var(--text-light);"></span>
+            </div>
+          </div>
+        </div>
+
         {# ── Section A: Domain Architecture ─── #}
         <div class="pipe-result-card" style="margin-bottom:14px;">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
@@ -869,7 +910,7 @@
           <div style="overflow-x:auto;">
           <table class="pipe-table">
             <thead><tr>
-              <th style="width:26px;"></th><th>Program</th><th>Interval</th><th>Name / Accession</th><th>Statistics</th>
+              <th style="width:26px;"></th><th>Program</th><th>Interval</th><th>Name / Accession</th><th>Evidence</th><th>Confidence</th>
             </tr></thead>
             <tbody>
             {% set loop_idx = namespace(v=0) %}
@@ -885,10 +926,16 @@
                 {% if a.feature_type == 'low_complexity' %}<span style="color:var(--text-light);font-size:0.71rem;margin-left:4px;">low-complexity</span>{% endif %}
               </td>
               <td style="font-family:monospace;font-size:0.79rem;color:var(--text-secondary);">{{ a.evidence or '—' }}</td>
+              <td style="font-family:monospace;font-size:0.79rem;color:var(--text-secondary);white-space:nowrap;">
+                {%- if a.e_value is not none %}E: {{ '%.1e'|format(a.e_value) }}{% endif -%}
+                {%- if a.e_value is not none and a.score is not none %}<br>{% endif -%}
+                {%- if a.score is not none %}Score: {{ '%.3g'|format(a.score) }}{% endif -%}
+                {%- if a.e_value is none and a.score is none %}—{% endif -%}
+              </td>
             </tr>
             {% endif %}{% endfor %}
             {% if not ann_domains %}
-            <tr><td colspan="5" style="color:var(--text-light);font-size:0.84rem;padding:10px;">No high-confidence domain hits.</td></tr>
+            <tr><td colspan="6" style="color:var(--text-light);font-size:0.84rem;padding:10px;">No high-confidence domain hits.</td></tr>
             {% endif %}
             </tbody>
           </table>
@@ -915,7 +962,10 @@
             {# Signal peptide — show best source with exact residue range #}
             {% if show_sp %}
             <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 16px;min-width:170px;">
-              <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;color:#166534;margin-bottom:6px;">Signal Peptide</div>
+              <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;color:#166534;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+                {% if ann_sp %}<input type="checkbox" class="ann-check topo-chk" data-gidx="{{ annotations.index(ann_sp[0]) }}" checked style="width:13px;height:13px;cursor:pointer;margin:0;" title="Include in domain drawing">{% endif %}
+                Signal Peptide
+              </div>
               {% if ann_sp %}
                 {# Use the merged annotation — could be from Phobius or SignalP #}
                 <div style="font-size:0.95rem;font-weight:700;color:#15803d;">Residues 1–{{ ann_sp[0].end }}</div>
@@ -946,29 +996,29 @@
             </div>
             {% endif %}
 
-            {# TM helices with explicit residue ranges #}
+            {# TM helices with explicit residue ranges — one checkbox per helix #}
             {% if show_tm %}
             <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 16px;min-width:170px;">
               <div style="font-size:0.7rem;font-weight:700;text-transform:uppercase;color:#991b1b;margin-bottom:6px;">TM Helices</div>
-              {% set tm_list = ann_tm if ann_tm else phob_tm_helices %}
-              {% set tm_src  = '' if ann_tm else ' (Phobius)' %}
-              <div style="font-size:0.95rem;font-weight:700;color:#dc2626;">{{ tm_list | length }} detected</div>
+              {% if ann_tm %}
+              <div style="font-size:0.95rem;font-weight:700;color:#dc2626;margin-bottom:4px;">{{ ann_tm | length }} detected</div>
+              {% for h in ann_tm %}
+              <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;color:#7f1d1d;margin-top:2px;cursor:pointer;">
+                <input type="checkbox" class="ann-check topo-chk" data-gidx="{{ annotations.index(h) }}" checked style="width:13px;height:13px;cursor:pointer;margin:0;" title="Include in domain drawing">
+                {{ h.start }}–{{ h.end }}
+              </label>
+              {% endfor %}
+              {% else %}
+              {# Phobius ran but TM helices weren't merged as separate annotations — show read-only #}
+              <div style="font-size:0.95rem;font-weight:700;color:#dc2626;">{{ phob_tm_helices | length }} detected</div>
               <div style="font-size:0.78rem;color:#7f1d1d;margin-top:3px;">
-                {% for h in tm_list[:4] %}
-                  {% if h.start is defined %}{{ h.start }}–{{ h.end }}{% else %}{{ h.get('start') }}–{{ h.get('end') }}{% endif %}{% if not loop.last %}, {% endif %}
-                {% endfor %}{% if tm_list | length > 4 %}, …{% endif %}
-                {{ tm_src }}
+                {% for h in phob_tm_helices[:4] %}{{ h.get('start') }}–{{ h.get('end') }}{% if not loop.last %}, {% endif %}{% endfor %}
+                {% if phob_tm_helices | length > 4 %}, …{% endif %} (Phobius)
               </div>
+              {% endif %}
             </div>
             {% endif %}
 
-          </div>
-          {# Hidden checkboxes for figure generator — keep gidx aligned #}
-          <div style="display:none;">
-          {% for a in annotations %}{% if a.feature_type in ['signal_peptide','transmembrane'] %}
-          {% set gidx = loop.index0 %}
-          <input type="checkbox" class="ann-check topo-chk" data-gidx="{{ gidx }}" checked>
-          {% endif %}{% endfor %}
           </div>
           {% else %}
           <p style="color:var(--text-light);font-size:0.84rem;margin:0;">No signal peptide or transmembrane helices detected.</p>
@@ -985,7 +1035,7 @@
           <div style="overflow-x:auto;">
           <table class="pipe-table">
             <thead><tr>
-              <th style="width:26px;"></th><th>Program</th><th>Position</th><th>Feature</th><th>Statistics</th>
+              <th style="width:26px;"></th><th>Program</th><th>Position</th><th>Feature</th><th>Evidence</th><th>Confidence</th>
             </tr></thead>
             <tbody>
             {% for a in annotations %}{% if a.feature_type in ['active_site','binding_site','metal_binding','disulfide','site'] %}
@@ -1003,10 +1053,16 @@
                 {% endif %}
               </td>
               <td style="font-family:monospace;font-size:0.79rem;color:var(--text-secondary);">{{ a.evidence or '—' }}</td>
+              <td style="font-family:monospace;font-size:0.79rem;color:var(--text-secondary);white-space:nowrap;">
+                {%- if a.e_value is not none %}E: {{ '%.1e'|format(a.e_value) }}{% endif -%}
+                {%- if a.e_value is not none and a.score is not none %}<br>{% endif -%}
+                {%- if a.score is not none %}Score: {{ '%.3g'|format(a.score) }}{% endif -%}
+                {%- if a.e_value is none and a.score is none %}—{% endif -%}
+              </td>
             </tr>
             {% endif %}{% endfor %}
             {% if not ann_sites %}
-            <tr><td colspan="5" style="color:var(--text-light);font-size:0.84rem;padding:10px;">None detected. (Run ScanProsite or InterProScan to find ACT_SITE, DISULFID, BINDING residues.)</td></tr>
+            <tr><td colspan="6" style="color:var(--text-light);font-size:0.84rem;padding:10px;">None detected. (Run ScanProsite or InterProScan to find ACT_SITE, DISULFID, BINDING residues.)</td></tr>
             {% endif %}
             </tbody>
           </table>
@@ -1364,7 +1420,7 @@
         <div class="pipe-result-card-title">Linked RefSeq Proteins</div>
         <p style="font-size:0.84rem;color:var(--text-secondary);margin-bottom:14px;line-height:1.6;">
           You submitted <code style="background:#f1f5f9;padding:1px 6px;border-radius:3px;">{{ ret.resolved_from }}</code>.
-          ProtPipe resolved this to <strong>{{ ret.resolved_acc }}</strong> and ran the full analysis on that protein.
+          ProtSuite resolved this to <strong>{{ ret.resolved_acc }}</strong> and ran the full analysis on that protein.
           Below are all RefSeq protein records linked to your accession via NCBI elink (XP_ predicted first, then NP_ curated RefSeq).
           The one used for analysis is highlighted.
         </p>
@@ -1402,7 +1458,7 @@
         </div>
         <p style="font-size:0.77rem;color:var(--text-light);margin-top:12px;">
           XP_ = predicted RefSeq protein (from genome annotation) · NP_ = manually curated RefSeq protein.
-          ProtPipe selects the longest XP_ record (or longest NP_ if no XP_ exists) for analysis.
+          ProtSuite selects the longest XP_ record (or longest NP_ if no XP_ exists) for analysis.
           To analyze a different isoform, re-submit that accession directly.
         </p>
       </div>
@@ -1596,23 +1652,41 @@
   </div>
 </section>
 
+<script type="module">
+  import('/static/js/vendor/ibs/IbsCharts.js')
+    .then(mod => { window.IbsCharts = mod.default || mod; })
+    .catch(err => {
+      console.error('IBS.js failed to load:', err);
+      window.__ibsLoadFailed = true;
+    })
+    .finally(() => {
+      window.__ibsLoadAttempted = true;
+      window.dispatchEvent(new Event('ibs-load-complete'));
+    });
+</script>
 <script>
 const jobId = {{ job_id | tojson }};
 const finalStatus = {{ status_data.status | tojson }};
+const ibsAnnPool = {{ ((summary.get('annotations', []) + summary.get('low_confidence_annotations', [])) if summary else []) | tojson }};
+const ibsProteinLength = {{ (summary.get('properties', {}).get('length') if summary else None) | tojson }};
 const initialPartial = {{ summary | tojson if (not is_complete and not is_error) else '{}' }};
 const initialModuleDetails = {{ module_details | tojson }};
 
 // ── Save to localStorage archive ──────────────────────────────
 if (finalStatus === 'complete' || finalStatus === 'running') {
   try {
-    const archive = JSON.parse(localStorage.getItem('protpipe_archive') || '[]');
+    // One-time migration from the old ProtPipe archive key, if present.
+    if (!localStorage.getItem('protsuite_archive') && localStorage.getItem('protpipe_archive')) {
+      localStorage.setItem('protsuite_archive', localStorage.getItem('protpipe_archive'));
+    }
+    const archive = JSON.parse(localStorage.getItem('protsuite_archive') || '[]');
     const existing = archive.findIndex(j => j.job_id === jobId);
     const archiveLabel = {{ (summary.get('retrieval', {}).get('header', '') if summary else '') | tojson }};
     const entry = { job_id: jobId, ts: Date.now(), status: finalStatus, input: archiveLabel || jobId };
     if (existing >= 0) archive[existing] = entry;
     else archive.unshift(entry);
     if (archive.length > 50) archive.splice(50);
-    localStorage.setItem('protpipe_archive', JSON.stringify(archive));
+    localStorage.setItem('protsuite_archive', JSON.stringify(archive));
   } catch(e) {}
 }
 
@@ -1626,7 +1700,7 @@ if (finalStatus !== 'complete' && finalStatus !== 'error') { poll(); }
 renderModuleDetails(initialModuleDetails);
 
 function poll() {
-  fetch('/tools/protpipe/status/' + jobId)
+  fetch('/tools/protsuite/status/' + jobId)
     .then(r => r.json())
     .then(data => {
       updateSteps(data.modules || {});
@@ -1728,7 +1802,7 @@ function updatePartialCard(partial) {
   if (note) {
     note.textContent = Object.keys(retrieval).length
       ? 'Retrieval is complete. Additional annotations will appear as the remote tools finish.'
-      : 'ProtPipe is validating your input and fetching the primary sequence now. This section updates automatically as soon as the first files are written.';
+      : 'ProtSuite is validating your input and fetching the primary sequence now. This section updates automatically as soon as the first files are written.';
   }
 
   setPartialField('partial-submitted-wrap', 'partial-submitted-value', request.submitted_value || '');
@@ -1810,6 +1884,18 @@ function selectSection(selector, checked) {
   updateSelCount();
 }
 
+// Clean non-cluttered default: keep domains + signal peptide/TM (already deduplicated
+// upstream), cap functional sites (often the most numerous/repetitive category — e.g.
+// disulfide bonds in cysteine-rich domains) to a handful, skip low-confidence entirely.
+const SMART_SELECT_SITE_CAP = 6;
+function smartSelectAnnotations() {
+  document.querySelectorAll('.ann-check').forEach(cb => { cb.checked = false; });
+  document.querySelectorAll('.domain-chk').forEach(cb => { cb.checked = true; });
+  document.querySelectorAll('.topo-chk').forEach(cb => { cb.checked = true; });
+  document.querySelectorAll('.site-chk').forEach((cb, i) => { cb.checked = i < SMART_SELECT_SITE_CAP; });
+  updateSelCount();
+}
+
 function updateSelCount() {
   const total   = document.querySelectorAll('.ann-check').length;
   const checked = document.querySelectorAll('.ann-check:checked').length;
@@ -1842,7 +1928,7 @@ function generateFigure() {
 
   const customCommands = (document.getElementById('custom-ann-input')?.value || '').trim();
 
-  fetch(`/tools/protpipe/figure/${jobId}/generate`, {
+  fetch(`/tools/protsuite/figure/${jobId}/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ indices, custom_commands: customCommands }),
@@ -1863,6 +1949,190 @@ function generateFigure() {
       if (loading) loading.style.display = 'none';
       if (btn) btn.disabled = false;
       if (errDiv) { errDiv.textContent = 'Network error: ' + e.message; errDiv.style.display = 'block'; }
+    });
+}
+
+// ── IBS.js interactive renderer ────────────────────────────────
+const IBS_DEFAULT_STYLES = {
+  domain:         { color: '#3b82f6' },
+  family:         { color: '#3b82f6' },
+  repeat:         { color: '#16a34a' },
+  motif:          { color: '#ea580c' },
+  coiled_coil:    { color: '#16a34a' },
+  low_complexity: { color: '#ea580c' },
+  signal_peptide: { color: '#16a34a' },
+  transmembrane:  { color: '#ea580c' },
+  disulfide:      { color: '#eab308' },
+  active_site:    { color: '#dc2626', shape: 'triangle' },
+  metal_binding:  { color: '#7c3aed', shape: 'circle' },
+  binding_site:   { color: '#7c3aed', shape: 'circle' },
+  site:           { color: '#7c3aed', shape: 'circle' },
+};
+const IBS_TYPE_LABELS = {
+  domain: 'Domain/Family', family: 'Domain/Family', repeat: 'Repeat', motif: 'Motif',
+  coiled_coil: 'Coiled coil', low_complexity: 'Low complexity',
+  signal_peptide: 'Signal peptide', transmembrane: 'TM helix', disulfide: 'Disulfide',
+  active_site: 'Active site', metal_binding: 'Metal binding', binding_site: 'Binding site', site: 'Site',
+};
+// Shape customization only applies to IBS "site" markers — protein domains don't expose a shape option.
+const IBS_SITE_TYPES = new Set(['active_site', 'metal_binding', 'binding_site', 'site']);
+const IBS_SITE_SHAPES = ['circle', 'triangle', 'pentagon', 'hexagon', 'octagon', 'rhombus', 'parallelogram', 'trapezium', 'arrow', 'dovetailArrow', 'roundRect', 'rect'];
+
+let ibsStyleConfig = JSON.parse(JSON.stringify(IBS_DEFAULT_STYLES));
+let ibsChartObj = null;
+let ibsPanelInitialized = false;
+
+function ibsAvailable() {
+  return typeof window.IbsCharts !== 'undefined' && !window.__ibsLoadFailed;
+}
+
+function showRendererTab(tab) {
+  const prositeBtn   = document.getElementById('renderer-tab-prosite');
+  const ibsBtn       = document.getElementById('renderer-tab-ibs');
+  const prositePanel = document.getElementById('renderer-prosite-panel');
+  const ibsPanel     = document.getElementById('renderer-ibs-panel');
+  const active   = { borderColor: 'var(--accent)', color: 'var(--accent)', fontWeight: '700' };
+  const inactive = { borderColor: '#475569', color: '#e2e8f0', fontWeight: '600' };
+  if (tab === 'ibs') {
+    prositePanel.style.display = 'none';
+    ibsPanel.style.display = '';
+    Object.assign(prositeBtn.style, inactive);
+    Object.assign(ibsBtn.style, active);
+    initIbsPanel();
+  } else {
+    ibsPanel.style.display = 'none';
+    prositePanel.style.display = '';
+    Object.assign(ibsBtn.style, inactive);
+    Object.assign(prositeBtn.style, active);
+  }
+}
+
+function initIbsPanel() {
+  if (ibsPanelInitialized) return;
+  const notice = document.getElementById('ibs-unavailable-notice');
+  const builder = document.getElementById('ibs-builder-wrap');
+
+  if (!window.__ibsLoadAttempted) {
+    // The ES module import is still in flight — wait for it, then retry.
+    notice.style.display = 'block';
+    notice.textContent = 'Loading IBS.js…';
+    builder.style.display = 'none';
+    window.addEventListener('ibs-load-complete', initIbsPanel, { once: true });
+    return;
+  }
+
+  ibsPanelInitialized = true;
+  if (!ibsAvailable()) {
+    notice.style.display = 'block';
+    notice.innerHTML = 'IBS.js library not found. Place <code>IbsCharts.js</code> (and its sibling files) in <code>static/js/vendor/ibs/</code> to enable this renderer.';
+    builder.style.display = 'none';
+    return;
+  }
+  notice.style.display = 'none';
+  builder.style.display = '';
+  renderIbsStyleControls();
+}
+
+function renderIbsStyleControls() {
+  const wrap = document.getElementById('ibs-style-controls');
+  const typesPresent = [...new Set(ibsAnnPool.map(a => a.feature_type))];
+  wrap.innerHTML = '';
+  typesPresent.forEach(ftype => {
+    if (!ibsStyleConfig[ftype]) ibsStyleConfig[ftype] = { color: '#3b82f6' };
+    const cfg = ibsStyleConfig[ftype];
+    const isSite = IBS_SITE_TYPES.has(ftype);
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:8px;';
+    row.innerHTML = `
+      <span style="font-size:0.74rem;color:#cbd5e1;flex:1;">${IBS_TYPE_LABELS[ftype] || ftype}</span>
+      <input type="color" value="${cfg.color}" style="width:28px;height:24px;border:none;cursor:pointer;background:none;" data-ftype="${ftype}" class="ibs-color-input">
+      ${isSite ? `<select style="font-size:0.72rem;background:#0f172a;color:#e2e8f0;border:1px solid #475569;border-radius:4px;" data-ftype="${ftype}" class="ibs-shape-input">
+        ${IBS_SITE_SHAPES.map(s => `<option value="${s}" ${s === (cfg.shape || 'circle') ? 'selected' : ''}>${s}</option>`).join('')}
+      </select>` : ''}`;
+    wrap.appendChild(row);
+  });
+  wrap.querySelectorAll('.ibs-color-input').forEach(el => el.addEventListener('input', e => {
+    ibsStyleConfig[e.target.dataset.ftype].color = e.target.value;
+  }));
+  wrap.querySelectorAll('.ibs-shape-input').forEach(el => el.addEventListener('change', e => {
+    ibsStyleConfig[e.target.dataset.ftype].shape = e.target.value;
+  }));
+}
+
+function buildIbsDiagram() {
+  if (!ibsAvailable()) return;
+  const host = document.getElementById('ibs-canvas-host');
+  host.innerHTML = '';
+  const length = ibsProteinLength || Math.max(1, ...ibsAnnPool.map(a => a.end || 1));
+
+  ibsChartObj = IbsCharts.init(host, true);
+  const protein = ibsChartObj.createProtein({
+    displayName: jobId,
+    position: { start: { site: 1, display: 'hide' }, end: { site: length, display: 'bottom' } },
+  });
+
+  const selectedIdx = new Set();
+  document.querySelectorAll('.ann-check:checked').forEach(cb => {
+    const idx = parseInt(cb.dataset.gidx);
+    if (!isNaN(idx)) selectedIdx.add(idx);
+  });
+
+  ibsAnnPool.forEach((ann, idx) => {
+    if (!selectedIdx.has(idx)) return;
+    const cfg = ibsStyleConfig[ann.feature_type] || { color: '#3b82f6' };
+    if (IBS_SITE_TYPES.has(ann.feature_type)) {
+      protein.createSite({
+        displayName: ann.label || ann.feature_type,
+        shape: cfg.shape || 'circle',
+        position: ann.start,
+        text: { content: ann.label || '', position: 'top' },
+        style: { color: cfg.color },
+      });
+    } else {
+      protein.createDomain({
+        displayName: ann.label || ann.feature_type,
+        position: {
+          start: { site: ann.start, display: 'hide' },
+          end:   { site: ann.end, display: 'hide' },
+        },
+        name: ann.label || '',
+        nameTextStyle: { location: 'top' },
+        style: { color: cfg.color },
+      });
+    }
+  });
+}
+
+function downloadIbs(fileType) {
+  if (!ibsChartObj) { alert('Click "Build Diagram" first.'); return; }
+  ibsChartObj.download(fileType, `protsuite_${jobId}_ibs`);
+}
+
+function saveIbsToJob() {
+  const statusEl = document.getElementById('ibs-save-status');
+  const host = document.getElementById('ibs-canvas-host');
+  const svgEl = host.querySelector('svg');
+  if (!svgEl) {
+    if (statusEl) { statusEl.textContent = 'Build a diagram first.'; statusEl.style.color = '#dc2626'; }
+    return;
+  }
+  const svgMarkup = new XMLSerializer().serializeToString(svgEl);
+  if (statusEl) { statusEl.textContent = 'Saving…'; statusEl.style.color = 'var(--text-light)'; }
+  fetch(`/tools/protsuite/figure/${jobId}/save-ibs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ svg: svgMarkup }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        if (statusEl) { statusEl.textContent = 'Saved.'; statusEl.style.color = '#059669'; }
+      } else {
+        if (statusEl) { statusEl.textContent = data.error || 'Save failed'; statusEl.style.color = '#dc2626'; }
+      }
+    })
+    .catch(e => {
+      if (statusEl) { statusEl.textContent = 'Network error: ' + e.message; statusEl.style.color = '#dc2626'; }
     });
 }
 

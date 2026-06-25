@@ -1,0 +1,77 @@
+{% extends "lab/lab_base.html" %}
+{% block title %}ProtSuite — Batch Results{% endblock %}
+
+{% block content %}
+
+<section class="page-hero">
+  <div class="lab-container">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <span style="background:rgba(255,255,255,.15);color:#fff;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:4px 12px;border-radius:999px;">Batch</span>
+        </div>
+        <h1>ProtSuite Batch</h1>
+        <p>Batch ID: <code id="batch-id-hero">{{ batch_id }}</code> — {{ jobs|length }} job{{ 's' if jobs|length != 1 else '' }} submitted.</p>
+      </div>
+      <a href="/tools/protsuite" style="align-self:flex-start;padding:9px 18px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);border-radius:7px;color:#fff;font-size:0.85rem;font-weight:600;white-space:nowrap;text-decoration:none;">
+        New Analysis →
+      </a>
+    </div>
+  </div>
+</section>
+
+<section class="lab-section" style="padding:48px 0 80px;">
+  <div class="lab-container" style="max-width:860px;">
+
+    <div class="pipe-result-card">
+      <div class="pipe-result-card-title">Batch Jobs</div>
+      <table class="pipe-table">
+        <thead>
+          <tr>
+            <th>Label</th>
+            <th>Job ID</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="batch-tbody">
+          {% for job in jobs %}
+          <tr id="batch-row-{{ job.job_id }}">
+            <td title="{{ job.label }}">{{ job.label[:50] }}{{ '…' if job.label|length > 50 else '' }}</td>
+            <td style="font-family:monospace;font-size:0.82rem;">{{ job.job_id }}</td>
+            <td id="batch-status-{{ job.job_id }}" style="text-transform:capitalize;">{{ job.status }}</td>
+            <td>
+              <a href="/tools/protsuite/results/{{ job.job_id }}" class="btn-lab btn-lab-primary btn-sm" style="background:var(--accent-teal);">View Results</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</section>
+
+<script>
+const batchId = {{ batch_id | tojson }};
+
+function pollBatch() {
+  fetch(`/tools/protsuite/batch/${batchId}/status`)
+    .then(r => r.json())
+    .then(data => {
+      if (!data.jobs) return;
+      let stillRunning = false;
+      data.jobs.forEach(job => {
+        const cell = document.getElementById('batch-status-' + job.job_id);
+        if (cell) cell.textContent = job.status;
+        if (job.status === 'running' || job.status === 'pending') stillRunning = true;
+      });
+      if (stillRunning) setTimeout(pollBatch, 5000);
+    })
+    .catch(() => setTimeout(pollBatch, 8000));
+}
+
+pollBatch();
+</script>
+
+{% endblock %}

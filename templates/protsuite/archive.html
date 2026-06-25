@@ -1,5 +1,5 @@
 {% extends "lab/lab_base.html" %}
-{% block title %}ProtPipe — Job Archive{% endblock %}
+{% block title %}ProtSuite — Job Archive{% endblock %}
 
 {% block content %}
 
@@ -10,10 +10,10 @@
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
           <span style="background:rgba(255,255,255,.15);color:#fff;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:4px 12px;border-radius:999px;">Job Archive</span>
         </div>
-        <h1>ProtPipe Archive</h1>
-        <p>Your recent ProtPipe analyses — stored locally in this browser. Results are available as long as the job files exist on the server.</p>
+        <h1>ProtSuite Archive</h1>
+        <p>Your recent ProtSuite analyses — stored locally in this browser. Results are available as long as the job files exist on the server.</p>
       </div>
-      <a href="/tools/protpipe" style="align-self:flex-start;padding:9px 18px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);border-radius:7px;color:#fff;font-size:0.85rem;font-weight:600;white-space:nowrap;text-decoration:none;">
+      <a href="/tools/protsuite" style="align-self:flex-start;padding:9px 18px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);border-radius:7px;color:#fff;font-size:0.85rem;font-weight:600;white-space:nowrap;text-decoration:none;">
         New Analysis →
       </a>
     </div>
@@ -46,7 +46,7 @@
             <td title="{{ job.input_label }}">{{ job.input_label }}</td>
             <td style="text-transform:capitalize;">{{ job.status }}</td>
             <td style="font-size:0.8rem;color:var(--text-light);">{{ job.started or '—' }}</td>
-            <td><a href="/tools/protpipe/results/{{ job.job_id }}" class="btn-lab btn-lab-primary btn-sm" style="background:var(--accent-teal);">View Results</a></td>
+            <td><a href="/tools/protsuite/results/{{ job.job_id }}" class="btn-lab btn-lab-primary btn-sm" style="background:var(--accent-teal);">View Results</a></td>
           </tr>
           {% endfor %}
         </tbody>
@@ -64,7 +64,7 @@
     <div id="archive-empty" style="display:none;text-align:center;padding:64px 0;color:var(--text-light);">
       <div style="font-size:2.5rem;margin-bottom:16px;opacity:.4;">&#x1F9EA;</div>
       <p style="font-size:1rem;color:var(--text-secondary);margin-bottom:20px;">No past jobs found in this browser.</p>
-      <a href="/tools/protpipe" class="btn-lab btn-lab-primary" style="background:var(--accent-teal);">Run Your First Analysis →</a>
+      <a href="/tools/protsuite" class="btn-lab btn-lab-primary" style="background:var(--accent-teal);">Run Your First Analysis →</a>
     </div>
 
     <!-- Archive table -->
@@ -90,11 +90,16 @@
 </section>
 
 <script>
-const ARCHIVE_KEY = 'protpipe_archive';
+const ARCHIVE_KEY = 'protsuite_archive';
 
 function loadArchive() {
   let archive = [];
-  try { archive = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]'); } catch(e) {}
+  try {
+    if (!localStorage.getItem(ARCHIVE_KEY) && localStorage.getItem('protpipe_archive')) {
+      localStorage.setItem(ARCHIVE_KEY, localStorage.getItem('protpipe_archive'));
+    }
+    archive = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
+  } catch(e) {}
   archive = Array.isArray(archive) ? archive : [];
 
   const emptyEl = document.getElementById('archive-empty');
@@ -133,7 +138,7 @@ function loadArchive() {
       <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(input)}">${escHtml(input.slice(0,40))}${input.length>40?'…':''}</td>
       <td style="font-size:0.8rem;color:var(--text-light);">${escHtml(date)}</td>
       <td style="white-space:nowrap;">
-        <a href="/tools/protpipe/results/${jobId}" class="btn-lab btn-lab-primary btn-sm" style="background:var(--accent-teal);margin-right:6px;">View Results</a>
+        <a href="/tools/protsuite/results/${jobId}" class="btn-lab btn-lab-primary btn-sm" style="background:var(--accent-teal);margin-right:6px;">View Results</a>
         <button onclick="removeEntry('${jobId}')" class="pipe-btn-ghost btn-sm" style="color:var(--error);border-color:var(--error);">Remove</button>
       </td>
     `;
@@ -164,7 +169,7 @@ function removeEntry(jobId) {
 }
 
 function clearArchive() {
-  if (!confirm('Remove all ProtPipe jobs from your browser history?')) return;
+  if (!confirm('Remove all ProtSuite jobs from your browser history?')) return;
   localStorage.removeItem(ARCHIVE_KEY);
   loadArchive();
 }

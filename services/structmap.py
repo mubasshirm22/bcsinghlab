@@ -63,7 +63,7 @@ def _title_for_summary(retrieval: dict, job_id: str) -> str:
         or retrieval.get("resolved_acc")
         or retrieval.get("accession")
         or retrieval.get("resolved_from")
-        or f"ProtPipe job {job_id}"
+        or f"ProtSuite job {job_id}"
     )
 
 

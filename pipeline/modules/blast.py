@@ -28,7 +28,7 @@ _MAX_HITS = 10
 _DATABASE = "swissprot"
 _PROGRAM  = "blastp"
 _EMAIL    = "singhlab.notify@gmail.com"
-_TOOL     = "singhlab_protpipe"
+_TOOL     = "singhlab_protsuite"
 
 
 def run(sequence: str, job_dir: str, database: str = _DATABASE, max_hits: int = _MAX_HITS) -> dict:

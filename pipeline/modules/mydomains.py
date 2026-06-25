@@ -135,7 +135,7 @@ def _try_mydomains(seq_len: int, annotations: list, job_dir: str, extra_commands
         data_str = data_str + "\n\n" + extra_commands.strip() if data_str else extra_commands.strip()
 
     _headers = {
-        "User-Agent": "Mozilla/5.0 (compatible; ProtPipe/1.0)",
+        "User-Agent": "Mozilla/5.0 (compatible; ProtSuite/1.0)",
         "Referer":    "https://prosite.expasy.org/mydomains/",
     }
 

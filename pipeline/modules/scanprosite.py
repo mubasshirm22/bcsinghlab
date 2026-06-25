@@ -34,7 +34,7 @@ _SCAN_URL  = "https://prosite.expasy.org/cgi-bin/prosite/PSScan.cgi"
 _VIEW_BASE = "https://prosite.expasy.org/cgi-bin/prosite/ScanView.cgi"
 _TIMEOUT   = 120
 
-_UA = "Mozilla/5.0 (compatible; ProtPipe/1.0; +https://singhlab.net)"
+_UA = "Mozilla/5.0 (compatible; ProtSuite/1.0; +https://singhlab.net)"
 
 _METAL_LIGANDS = {
     "zn", "zinc", "fe", "iron", "cu", "copper", "co", "cobalt",

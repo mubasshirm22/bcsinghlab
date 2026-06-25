@@ -77,7 +77,7 @@
         <p>{{ map_data.title }}</p>
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
-        <a href="/tools/protpipe/results/{{ job_id }}" style="padding:9px 18px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);border-radius:7px;color:#fff;font-size:0.85rem;font-weight:600;text-decoration:none;">Back to ProtPipe</a>
+        <a href="/tools/protsuite/results/{{ job_id }}" style="padding:9px 18px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);border-radius:7px;color:#fff;font-size:0.85rem;font-weight:600;text-decoration:none;">Back to ProtSuite</a>
         <a href="/tools/structmap" style="padding:9px 18px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);border-radius:7px;color:#fff;font-size:0.85rem;font-weight:600;text-decoration:none;">Open Another Job</a>
       </div>
     </div>
@@ -140,7 +140,7 @@
       </div>
       {% endfor %}
       {% else %}
-      <p style="color:var(--text-light);font-size:0.9rem;">No merged annotations were found in this ProtPipe job.</p>
+      <p style="color:var(--text-light);font-size:0.9rem;">No merged annotations were found in this ProtSuite job.</p>
       {% endif %}
     </div>
 

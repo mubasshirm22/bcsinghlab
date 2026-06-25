@@ -483,12 +483,12 @@ def search(sequence: str, pattern_input, overlapping: bool = True) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# ProtPipe pipeline module entry point
+# ProtSuite pipeline module entry point
 # ---------------------------------------------------------------------------
 
 def run_motif_analysis(sequence: str, motif_queries: list) -> dict:
     """
-    ProtPipe pipeline module entry point.
+    ProtSuite pipeline module entry point.
 
     ``motif_queries`` is a list of dicts::
 

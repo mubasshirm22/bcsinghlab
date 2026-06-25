@@ -86,7 +86,7 @@ def submit_job(input_data: dict) -> str:
     elif "InterProScan" in enabled_modules or ("BLAST" in enabled_modules and len(enabled_modules) >= 7):
         runtime_hint = "Likely 5-15 minutes depending on remote queues."
     elif "DisorderPred" in enabled_modules:
-        runtime_hint = "Usually the main ProtPipe annotations appear quickly; DisorderPred companion may take a few extra minutes."
+        runtime_hint = "Usually the main ProtSuite annotations appear quickly; DisorderPred companion may take a few extra minutes."
     elif any(item in enabled_modules for item in ("BLAST", "SMART", "SignalP")):
         runtime_hint = "Likely 3-10 minutes depending on remote queues."
     job_store.write_result(job_id, "request.json", {
@@ -96,10 +96,10 @@ def submit_job(input_data: dict) -> str:
         "enabled_modules": enabled_modules,
         "runtime_hint": runtime_hint,
     })
-    telemetry.record_job_event("protpipe", job_id, "submitted", input_data.get("input_type", "raw_fasta"))
+    telemetry.record_job_event("protsuite", job_id, "submitted", input_data.get("input_type", "raw_fasta"))
 
     t = threading.Thread(target=_run, args=(input_data, job_id, job_dir), daemon=True)
-    t.name = f"protpipe-{job_id}"
+    t.name = f"protsuite-{job_id}"
     t.start()
     return job_id
 
@@ -121,7 +121,7 @@ def get_summary(job_id: str) -> dict:
 def _run(input_data: dict, job_id: str, job_dir: str):
     try:
         job_store.set_status(job_id, "running")
-        telemetry.record_job_event("protpipe", job_id, "running", "Pipeline worker started")
+        telemetry.record_job_event("protsuite", job_id, "running", "Pipeline worker started")
 
         # ----------------------------------------------------------------
         # Step 1 — sequence retrieval (serial, must succeed first)
@@ -141,7 +141,7 @@ def _run(input_data: dict, job_id: str, job_dir: str):
             job_store.write_result(job_id, "retrieval.json", ret)
             job_store.set_module_status(job_id, "retrieval", "error")
             _record_module_detail(job_id, "retrieval", ret, retrieval_start, "Could not retrieve a protein sequence.")
-            telemetry.record_job_event("protpipe", job_id, "error", ret["error"])
+            telemetry.record_job_event("protsuite", job_id, "error", ret["error"])
             job_store.set_status(job_id, "error", error=ret["error"])
             return
 
@@ -313,7 +313,7 @@ def _run(input_data: dict, job_id: str, job_dir: str):
                         raw_error=results[key]["error"],
                     )
                     telemetry.record_component_run(
-                        "protpipe",
+                        "protsuite",
                         key,
                         job_id,
                         "timeout",
@@ -356,7 +356,7 @@ def _run(input_data: dict, job_id: str, job_dir: str):
             finished_at=datetime.now(timezone.utc).isoformat(),
         )
         telemetry.record_component_run(
-            "protpipe",
+            "protsuite",
             "annotations",
             job_id,
             "complete",
@@ -386,7 +386,7 @@ def _run(input_data: dict, job_id: str, job_dir: str):
                     raw_error=results["blast"]["error"],
                 )
                 telemetry.record_component_run(
-                    "protpipe",
+                    "protsuite",
                     "blast",
                     job_id,
                     "timeout",
@@ -449,14 +449,14 @@ def _run(input_data: dict, job_id: str, job_dir: str):
         }
         job_store.write_result(job_id, "summary.json", summary)
         job_store.set_status(job_id, "complete")
-        telemetry.record_job_event("protpipe", job_id, "complete", f"{len(annotation_list)} annotations")
+        telemetry.record_job_event("protsuite", job_id, "complete", f"{len(annotation_list)} annotations")
         print(f"[runner] job {job_id} complete — {len(annotation_list)} annotations")
 
     except Exception as e:
         import traceback
         msg = f"Unexpected pipeline error: {e}\n{traceback.format_exc()}"
         print(f"[runner] ERROR in job {job_id}: {msg}")
-        telemetry.record_job_event("protpipe", job_id, "error", str(e))
+        telemetry.record_job_event("protsuite", job_id, "error", str(e))
         job_store.set_status(job_id, "error", error=msg)
 
 
@@ -490,7 +490,7 @@ def _run_module(module_fn, seq, job_dir, key, results_dict, job_id, **kwargs):
             finished_at=datetime.now(timezone.utc).isoformat(),
         )
         telemetry.record_component_run(
-            "protpipe",
+            "protsuite",
             key,
             job_id,
             "error",
@@ -600,7 +600,7 @@ def _record_module_detail(job_id: str, key: str, result: dict, started_at: float
         finished_at=datetime.now(timezone.utc).isoformat(),
     )
     telemetry.record_component_run(
-        "protpipe",
+        "protsuite",
         key,
         job_id,
         event_status,

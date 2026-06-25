@@ -304,7 +304,7 @@ def _normalize_signalp(result: dict) -> list:
     has_sp = data.get("has_signal_peptide", False)
     sp_end = data.get("signal_peptide_end", 0) or 0
     if has_sp and sp_end > 0:
-        d_score = data.get("d_score", None)
+        prob = data.get("probability", None)
         out.append({
             "source":          "SignalP",
             "feature_type":    "signal_peptide",
@@ -313,12 +313,12 @@ def _normalize_signalp(result: dict) -> list:
             "label":           "Signal peptide",
             "accession":       "",
             "description":     (
-                f"Signal peptide (SignalP), residues 1–{sp_end}"
-                + (f", D-score {d_score:.3f}" if d_score else "")
+                f"Signal peptide (SignalP-5.0), residues 1–{sp_end}"
+                + (f", cleavage-site probability {prob:.3f}" if prob else "")
             ),
             "e_value":         None,
-            "score":           d_score,
-            "evidence":        f"SignalP  SP 1–{sp_end}",
+            "score":           prob,
+            "evidence":        f"SignalP  SP 1–{sp_end}" + (f"  P={prob:.3f}" if prob else ""),
             "display_priority": 10,
             "source_support":  ["SignalP"],
         })

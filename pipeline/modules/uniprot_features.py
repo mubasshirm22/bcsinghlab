@@ -2,7 +2,7 @@
 UniProtKB feature fetcher.
 
 Pulls curated positional features from the official UniProt REST API and
-normalizes them into ProtPipe's shared annotation schema.
+normalizes them into ProtSuite's shared annotation schema.
 """
 
 import re

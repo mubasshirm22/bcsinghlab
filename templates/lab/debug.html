@@ -56,15 +56,15 @@
       </table>
     </div>
 
-    {% if protpipe_service_status %}
+    {% if protsuite_service_status %}
     <div class="pipe-result-card" style="margin-bottom:20px;">
-      <div class="pipe-result-card-title">ProtPipe Service Health</div>
+      <div class="pipe-result-card-title">ProtSuite Service Health</div>
       <table class="pipe-table">
         <thead>
           <tr><th>Service</th><th>Status</th><th>Tier</th><th>Note</th></tr>
         </thead>
         <tbody>
-          {% for name, item in protpipe_service_status.items() %}
+          {% for name, item in protsuite_service_status.items() %}
           <tr>
             <td>{{ name }}</td>
             <td>
@@ -125,17 +125,17 @@
       </table>
     </div>
 
-    {% if protpipe_recent %}
+    {% if protsuite_recent %}
     <div class="pipe-result-card">
-      <div class="pipe-result-card-title">Recent ProtPipe Jobs</div>
+      <div class="pipe-result-card-title">Recent ProtSuite Jobs</div>
       <table class="pipe-table">
         <thead>
           <tr><th>Job ID</th><th>Status</th><th>Started</th><th>Finished</th><th>Input</th><th>Length</th></tr>
         </thead>
         <tbody>
-          {% for job in protpipe_recent %}
+          {% for job in protsuite_recent %}
           <tr>
-            <td><a href="/tools/protpipe/results/{{ job.job_id }}">{{ job.job_id }}</a></td>
+            <td><a href="/tools/protsuite/results/{{ job.job_id }}">{{ job.job_id }}</a></td>
             <td style="text-transform:capitalize;">{{ job.status }}</td>
             <td>{{ job.started }}</td>
             <td>{{ job.finished }}</td>

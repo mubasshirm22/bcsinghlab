@@ -77,7 +77,7 @@ def run(sequence: str, job_dir: str) -> dict:
                 "SEQUENCE": sequence,
             },
             headers={
-                "User-Agent": "Mozilla/5.0 (compatible; ProtPipe/1.0; +https://singhlab.net)",
+                "User-Agent": "Mozilla/5.0 (compatible; ProtSuite/1.0; +https://singhlab.net)",
                 "Referer":    "https://smart.embl.de/",
                 "Accept":     "text/html,application/xhtml+xml",
             },
@@ -105,7 +105,7 @@ def run(sequence: str, job_dir: str) -> dict:
             try:
                 pr = requests.get(
                     f"{_RESULT_URL}?id={job_id}",
-                    headers={"User-Agent": "Mozilla/5.0 (compatible; ProtPipe/1.0)"},
+                    headers={"User-Agent": "Mozilla/5.0 (compatible; ProtSuite/1.0)"},
                     timeout=_TIMEOUT,
                 )
                 if pr.ok:

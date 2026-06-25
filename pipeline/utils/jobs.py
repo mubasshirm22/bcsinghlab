@@ -137,6 +137,37 @@ def get_summary(job_id: str) -> dict:
     return read_result(job_id, "summary.json") or {}
 
 
+_BATCHES_DIR = os.path.join(JOBS_DIR, "_batches")
+
+
+def create_batch(jobs: list) -> str:
+    """
+    Store a batch manifest mapping a batch_id to a list of {job_id, label} entries.
+    `jobs` is a list of dicts: {"job_id": str, "label": str}.
+    """
+    os.makedirs(_BATCHES_DIR, exist_ok=True)
+    batch_id = uuid.uuid4().hex[:12]
+    with open(os.path.join(_BATCHES_DIR, f"{batch_id}.json"), "w") as f:
+        json.dump({
+            "batch_id": batch_id,
+            "created": datetime.now(timezone.utc).isoformat(),
+            "jobs": jobs,
+        }, f, indent=2)
+    return batch_id
+
+
+def get_batch(batch_id: str) -> dict:
+    """Return the batch manifest dict, or {} if missing."""
+    path = os.path.join(_BATCHES_DIR, f"{batch_id}.json")
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
 def list_jobs(limit: int = 100):
     """Return recent jobs from the filesystem archive."""
     if not os.path.isdir(JOBS_DIR):

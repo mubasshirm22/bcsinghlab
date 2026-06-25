@@ -7,27 +7,30 @@ Integration: EBI Job Dispatcher REST API
   Status:  GET  https://www.ebi.ac.uk/Tools/services/rest/phobius/status/{jobId}
   Result:  GET  https://www.ebi.ac.uk/Tools/services/rest/phobius/result/{jobId}/out
 
-⚠️  ENDPOINT VERIFICATION REQUIRED
-Run the following curl and paste the response:
+Endpoint verified live (2026-06-25): submitting with tool="phobius" returns a
+job ID and the result is reachable. The EBI wrapper only exposes result types
+"out" / "sequence" / "submission" / "zip" — there is NO "short" result type,
+so the previous parser (written for the standalone CLI's "-short" tabular
+output) never matched anything real and silently mis-parsed "out" lines.
 
-  curl -s -X POST \\
-    "https://www.ebi.ac.uk/Tools/services/rest/phobius/run" \\
-    -d "email=test@test.com&sequence=MKTIIALSYIFCLVFA&stype=protein" \\
-    -D -
-
-If the submit URL returns 404, the tool name in the EBI dispatcher path may differ
-(e.g. "phobius" vs "pfa_phobius"). Report the response and I'll fix it.
-
-Expected output format (Phobius "short" output):
-  ID  SEQ_LENGTH  TM  SP  TOPOLOGY
-  seq1  150  0  Y  n25c                ← signal peptide ending at residue 25
-  seq1  200  2  0  i5-27o45-67i        ← 2 TM helices, no signal peptide
+Actual "out" format is an EMBL-style feature table, e.g.:
+  ID   EMBOSS_001
+  FT   SIGNAL        1     16
+  FT   DOMAIN        1      3       N-REGION.
+  FT   DOMAIN        4     12       H-REGION.
+  FT   DOMAIN       13     16       C-REGION.
+  FT   DOMAIN       17     40       NON CYTOPLASMIC.
+  //
+or, for a TM protein:
+  FT   TRANSMEM     45     67
+  FT   DOMAIN        1     44       CYTOPLASMIC.
+  FT   DOMAIN       68     90       NON CYTOPLASMIC.
 
 Fields returned:
   - has_signal_peptide: bool
-  - signal_peptide_end: int (1-based cleavage site, 0 if none)
+  - signal_peptide_end: int (1-based cleavage site = end of the SIGNAL region, 0 if none)
   - tm_count: int
-  - topology: str (raw topology string, e.g. "i5-27o45-67i")
+  - topology: str (human-readable summary built from the FT lines)
   - tm_helices: list of {start: int, end: int}  (1-based, empty if none)
 """
 
@@ -59,7 +62,6 @@ def run(sequence: str, job_dir: str) -> dict:
         "email":    _EMAIL,
         "sequence": f">query\n{sequence}",
         "stype":    "protein",
-        "format":   "short",
     }
 
     result = submit_and_wait(
@@ -88,72 +90,65 @@ def run(sequence: str, job_dir: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Parser for Phobius "short" output format
+# Parser for Phobius "out" feature-table output
 # ---------------------------------------------------------------------------
+
+_FT_LINE = re.compile(r"^FT\s+(\S+)\s+(\d+)\s+(\d+)\s*(.*)$")
+
 
 def _parse_output(text: str) -> dict:
     """
-    Phobius short output looks like:
-      ID             SEQLEN TM  SP  PREDICTION
-      query             150  0   Y  n25c
-    or:
-      query             200  2   0  i5-27o45-67i
+    Phobius "out" output is an EMBL-style feature table:
+      ID   EMBOSS_001
+      FT   SIGNAL        1     16
+      FT   DOMAIN        1      3       N-REGION.
+      FT   TRANSMEM     45     67
+      FT   DOMAIN        1     44       CYTOPLASMIC.
+      //
+    Exact 1-based start/end coordinates come directly from each FT line.
     """
+    if "FT" not in text and "ID" not in text:
+        return {
+            "status": "error",
+            "data": _empty_data(),
+            "error": (
+                "Phobius returned output but no feature-table lines were found. "
+                f"Raw output (first 300 chars): {text[:300]!r}"
+            ),
+        }
+
+    sp_end = 0
+    tm_helices = []
+    topology_parts = []
+
     for line in text.splitlines():
         line = line.strip()
-        if not line or line.startswith("ID") or line.startswith("#"):
+        m = _FT_LINE.match(line)
+        if not m:
             continue
-        parts = line.split()
-        if len(parts) < 5:
-            continue
+        feature, start_s, end_s, desc = m.groups()
+        start, end = int(start_s), int(end_s)
+        desc = desc.strip().rstrip(".")
 
-        # Parts: [id, seqlen, tm_count, sp, topology]
-        try:
-            tm_count = int(parts[2])
-        except ValueError:
-            tm_count = 0
-
-        sp_field = parts[3]
-        has_signal_peptide = (sp_field.strip() not in ("0", "N", "NO", ""))
-        topology = parts[4] if len(parts) > 4 else ""
-
-        # Extract SP cleavage site from topology, e.g. "n25c" → end=25
-        sp_end = 0
-        if has_signal_peptide:
-            m = re.match(r"n(\d+)c", topology, re.IGNORECASE)
-            if m:
-                sp_end = int(m.group(1))
-
-        # Parse TM helices from topology string e.g. "i5-27o45-67i"
-        # Pattern: digits-digits optionally preceded by i/o/n/c
-        tm_helices = []
-        for match in re.finditer(r"(\d+)-(\d+)", topology):
-            start, end = int(match.group(1)), int(match.group(2))
-            # Skip the signal peptide region if present
-            if has_signal_peptide and end <= sp_end:
-                continue
+        if feature == "SIGNAL":
+            sp_end = end
+            topology_parts.append(f"SIGNAL {start}-{end}")
+        elif feature == "TRANSMEM":
             tm_helices.append({"start": start, "end": end})
+            topology_parts.append(f"TRANSMEM {start}-{end}")
+        elif feature == "DOMAIN":
+            topology_parts.append(f"{start}-{end} {desc}" if desc else f"DOMAIN {start}-{end}")
 
-        data = {
-            "has_signal_peptide": has_signal_peptide,
-            "signal_peptide_end": sp_end,
-            "tm_count":           tm_count,
-            "topology":           topology,
-            "tm_helices":         tm_helices,
-        }
-        print(f"[Phobius] parsed: SP={has_signal_peptide}, TM={tm_count}")
-        return {"status": "ok", "data": data, "error": ""}
-
-    # If we couldn't parse any result line, return a clear error rather than silently
-    # returning zeros — the caller can decide whether to surface this to the user.
-    return {
-        "status": "error",
-        "data": _empty_data(),
-        "error": (
-            "Phobius returned output but no parseable result lines were found. "
-            f"Raw output (first 300 chars): {text[:300]!r}"
-        ),
+    has_signal_peptide = sp_end > 0
+    data = {
+        "has_signal_peptide": has_signal_peptide,
+        "signal_peptide_end": sp_end,
+        "tm_count":           len(tm_helices),
+        "topology":           "; ".join(topology_parts),
+        "tm_helices":         tm_helices,
     }
+    print(f"[Phobius] parsed: SP={has_signal_peptide} (end={sp_end}), TM={len(tm_helices)} {tm_helices}")
+    return {"status": "ok", "data": data, "error": ""}
 
 
 def _empty_data() -> dict:

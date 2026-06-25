@@ -96,9 +96,9 @@ def _ensure_db_columns():
 _SERVICE_STATUS_TTL = 300
 _SERVICE_STATUS_CACHE = {"expires_at": 0.0, "data": {}}
 _SERVICE_STATUS_LOCK = threading.Lock()
-_PROTPIPE_STATUS_TTL = 300
-_PROTPIPE_STATUS_CACHE = {"expires_at": 0.0, "data": {}}
-_PROTPIPE_STATUS_LOCK = threading.Lock()
+_PROTSUITE_STATUS_TTL = 300
+_PROTSUITE_STATUS_CACHE = {"expires_at": 0.0, "data": {}}
+_PROTSUITE_STATUS_LOCK = threading.Lock()
 _DISORDER_STATUS_TTL = 300
 _DISORDER_STATUS_CACHE = {"expires_at": 0.0, "data": {}}
 _DISORDER_STATUS_LOCK = threading.Lock()
@@ -162,7 +162,7 @@ def check_service_health():
 	return dict(status)
 
 
-def _fetch_protpipe_service_health():
+def _fetch_protsuite_service_health():
 	status = {
 		"BLAST": {
 			"status": _probe_http_service("https://blast.ncbi.nlm.nih.gov/Blast.cgi", ok_statuses=(200, 301, 302, 405)),
@@ -210,9 +210,9 @@ def _fetch_protpipe_service_health():
 			"note": "Broad integrative annotation",
 		},
 		"SignalP": {
-			"status": "OFFLINE",
-			"tier": "offline",
-			"note": "Upstream endpoint currently unavailable",
+			"status": _probe_http_service("https://services.healthtech.dtu.dk/services/SignalP-5.0/"),
+			"tier": "core",
+			"note": "DTU SignalP-5.0 — independent signal peptide cross-check for Phobius",
 		},
 		"DisorderPred": {
 			"status": check_service_health().get("NetSurf", "DOWN"),
@@ -228,16 +228,16 @@ def _fetch_protpipe_service_health():
 	return status
 
 
-def check_protpipe_service_health():
+def check_protsuite_service_health():
 	now = time.time()
-	with _PROTPIPE_STATUS_LOCK:
-		if _PROTPIPE_STATUS_CACHE["data"] and now < _PROTPIPE_STATUS_CACHE["expires_at"]:
-			return dict(_PROTPIPE_STATUS_CACHE["data"])
+	with _PROTSUITE_STATUS_LOCK:
+		if _PROTSUITE_STATUS_CACHE["data"] and now < _PROTSUITE_STATUS_CACHE["expires_at"]:
+			return dict(_PROTSUITE_STATUS_CACHE["data"])
 
-	status = _fetch_protpipe_service_health()
-	with _PROTPIPE_STATUS_LOCK:
-		_PROTPIPE_STATUS_CACHE["data"] = status
-		_PROTPIPE_STATUS_CACHE["expires_at"] = now + _PROTPIPE_STATUS_TTL
+	status = _fetch_protsuite_service_health()
+	with _PROTSUITE_STATUS_LOCK:
+		_PROTSUITE_STATUS_CACHE["data"] = status
+		_PROTSUITE_STATUS_CACHE["expires_at"] = now + _PROTSUITE_STATUS_TTL
 	return dict(status)
 
 
@@ -669,25 +669,25 @@ def admin_debug():
 	telemetry_snapshot = telemetry.snapshot()
 	recent_counts = telemetry.recent_job_counts(hours=24)
 	service_status = check_service_health()
-	protpipe_service_status = check_protpipe_service_health()
+	protsuite_service_status = check_protsuite_service_health()
 	active_threads = []
 	for thread in threading.enumerate():
-		if thread.getName() in siteDict or str(thread.getName()).startswith("protpipe-") or str(thread.getName()).startswith("disorderpred-"):
+		if thread.getName() in siteDict or str(thread.getName()).startswith("protsuite-") or str(thread.getName()).startswith("disorderpred-"):
 			active_threads.append(thread.getName())
 
-	protpipe_recent = []
+	protsuite_recent = []
 	if _PIPELINE_AVAILABLE:
 		from pipeline.utils.jobs import list_jobs
-		protpipe_recent = list_jobs(limit=20)
+		protsuite_recent = list_jobs(limit=20)
 
 	return render_template(
 		'lab/debug.html',
 		service_status=service_status,
-		protpipe_service_status=protpipe_service_status,
+		protsuite_service_status=protsuite_service_status,
 		telemetry_snapshot=telemetry_snapshot,
 		recent_counts=recent_counts,
 		active_threads=active_threads,
-		protpipe_recent=protpipe_recent,
+		protsuite_recent=protsuite_recent,
 	)
 
 
@@ -1028,7 +1028,7 @@ def validate_sites(form):
 	return count
 
 # ---------------------------------------------------------------------------
-# ProtPipe — protein analysis pipeline routes
+# ProtSuite — protein analysis pipeline routes
 # ---------------------------------------------------------------------------
 
 try:
@@ -1036,7 +1036,7 @@ try:
 	_PIPELINE_AVAILABLE = True
 except ImportError as _pipe_err:
 	_PIPELINE_AVAILABLE = False
-	print(f"[protpipe] pipeline not available: {_pipe_err}")
+	print(f"[protsuite] pipeline not available: {_pipe_err}")
 
 try:
 	from pipeline.modules import retrieval as _retrieval_module
@@ -1047,7 +1047,7 @@ except ImportError as _retrieval_err:
 	print(f"[disorderpred] retrieval module not available: {_retrieval_err}")
 
 
-def _protpipe_enabled_modules(input_data):
+def _protsuite_enabled_modules(input_data):
 	modules = []
 	if input_data.get('run_blast'):
 		modules.append('BLAST')
@@ -1076,14 +1076,14 @@ def _protpipe_enabled_modules(input_data):
 	return modules
 
 
-def _protpipe_runtime_hint(enabled_modules):
+def _protsuite_runtime_hint(enabled_modules):
 	slow = [item for item in enabled_modules if item in {'BLAST', 'InterProScan', 'SMART', 'SignalP', 'SSPred consensus'}]
 	if 'SSPred consensus' in enabled_modules:
 		return "Likely 5-15 minutes depending on remote queues. SSPred companion waits on multiple external predictors."
 	if 'InterProScan' in enabled_modules or 'BLAST' in enabled_modules and len(enabled_modules) >= 7:
 		return "Likely 5-15 minutes depending on remote queues."
 	if 'DisorderPred' in enabled_modules:
-		return "Usually the main ProtPipe annotations appear quickly; DisorderPred companion may take a few extra minutes."
+		return "Usually the main ProtSuite annotations appear quickly; DisorderPred companion may take a few extra minutes."
 	if slow:
 		return "Likely 3-10 minutes depending on remote queues."
 	if enabled_modules:
@@ -1216,74 +1216,89 @@ def _disorder_partial_summary(job_id):
 
 
 @app.route('/tools/protpipe', methods=['GET', 'POST'])
-def protpipe_index():
+@app.route('/tools/protpipe/<path:subpath>', methods=['GET', 'POST'])
+def protsuite_legacy_redirect(subpath=''):
+	"""ProtPipe was renamed to ProtSuite — keep old bookmarks/links/forms working."""
+	target = '/tools/protsuite' + (('/' + subpath) if subpath else '')
+	qs = request.query_string.decode()
+	if qs:
+		target += '?' + qs
+	return redirect(target, code=308)
+
+
+def _protsuite_module_flags_from_form(form) -> dict:
+	"""Shared module-selection / BLAST / motif options, used by both the single-job and batch forms."""
+	motif_queries = []
+	if 'run_motif_search' in form and _MOTIF_AVAILABLE:
+		selected_presets = form.getlist('motif_presets')
+		preset_map = {p['id']: p for p in _MOTIF_PRESETS} if _MOTIF_AVAILABLE else {}
+		for pid in selected_presets:
+			if pid in preset_map:
+				p = preset_map[pid]
+				motif_queries.append({'name': p['name'], 'pattern': p['pattern']})
+		custom_pattern = form.get('motif_custom_pattern', '').strip()
+		custom_name    = form.get('motif_custom_name', '').strip() or 'Custom motif'
+		if custom_pattern:
+			motif_queries.append({'name': custom_name, 'pattern': custom_pattern})
+
+	try:
+		blast_max_hits = int(form.get('blast_max_hits', 10))
+		blast_max_hits = max(5, min(50, blast_max_hits))
+	except (ValueError, TypeError):
+		blast_max_hits = 10
+
+	blast_db = form.get('blast_database', 'swissprot')
+	if blast_db not in {'swissprot', 'refseq_protein', 'pdb', 'nr'}:
+		blast_db = 'swissprot'
+
+	return {
+		'run_blast':         'run_blast'         in form,
+		'run_hmmer':         'run_hmmer'         in form,
+		'run_phobius':       'run_phobius'       in form,
+		'run_signalp':       'run_signalp'       in form,
+		'run_cdd':           'run_cdd'           in form,
+		'run_scanprosite':   'run_scanprosite'   in form,
+		'run_uniprot_features': 'run_uniprot_features' in form,
+		'run_smart':         'run_smart'         in form,
+		'run_interproscan':  'run_interproscan'  in form,
+		'run_coils':         'run_coils'         in form,
+		'run_disorderpred':  'run_disorderpred'  in form,
+		'run_sspred_companion': 'run_sspred_companion' in form,
+		'blast_max_hits':    blast_max_hits,
+		'blast_database':    blast_db,
+		'motif_queries':     motif_queries,
+	}
+
+
+@app.route('/tools/protsuite', methods=['GET', 'POST'])
+def protsuite_index():
 	if not _PIPELINE_AVAILABLE:
-		return render_template('protpipe/unavailable.html',
+		return render_template('protsuite/unavailable.html',
 			reason="Pipeline dependencies not installed. Run: pip install biopython svgwrite"), 503
 
 	if request.method == 'POST':
-		# Build motif queries list from optional motif section
-		motif_queries = []
-		if 'run_motif_search' in request.form and _MOTIF_AVAILABLE:
-			# Preset motifs (multiple checkboxes named motif_presets)
-			selected_presets = request.form.getlist('motif_presets')
-			preset_map = {p['id']: p for p in _MOTIF_PRESETS} if _MOTIF_AVAILABLE else {}
-			for pid in selected_presets:
-				if pid in preset_map:
-					p = preset_map[pid]
-					motif_queries.append({'name': p['name'], 'pattern': p['pattern']})
-			# Custom motif
-			custom_pattern = request.form.get('motif_custom_pattern', '').strip()
-			custom_name    = request.form.get('motif_custom_name', '').strip() or 'Custom motif'
-			if custom_pattern:
-				motif_queries.append({'name': custom_name, 'pattern': custom_pattern})
-
-		try:
-			blast_max_hits = int(request.form.get('blast_max_hits', 10))
-			blast_max_hits = max(5, min(50, blast_max_hits))
-		except (ValueError, TypeError):
-			blast_max_hits = 10
-
-		blast_db = request.form.get('blast_database', 'swissprot')
-		if blast_db not in {'swissprot', 'refseq_protein', 'pdb', 'nr'}:
-			blast_db = 'swissprot'
-
 		input_data = {
 			'input_type':        request.form.get('input_type', 'auto'),
 			'sequence_input':    request.form.get('sequence_input', '').strip(),
-			'run_blast':         'run_blast'         in request.form,
-			'run_hmmer':         'run_hmmer'         in request.form,
-			'run_phobius':       'run_phobius'       in request.form,
-			'run_signalp':       'run_signalp'       in request.form,
-			'run_cdd':           'run_cdd'           in request.form,
-			'run_scanprosite':   'run_scanprosite'   in request.form,
-			'run_uniprot_features': 'run_uniprot_features' in request.form,
-			'run_smart':         'run_smart'         in request.form,
-			'run_interproscan':  'run_interproscan'  in request.form,
-			'run_coils':         'run_coils'         in request.form,
-			'run_disorderpred':  'run_disorderpred'  in request.form,
-			'run_sspred_companion': 'run_sspred_companion' in request.form,
-			'blast_max_hits':    blast_max_hits,
-			'blast_database':    blast_db,
-			'motif_queries':     motif_queries,
+			**_protsuite_module_flags_from_form(request.form),
 		}
-		enabled_modules = _protpipe_enabled_modules(input_data)
+		enabled_modules = _protsuite_enabled_modules(input_data)
 		if not input_data['sequence_input']:
-			service_status = check_protpipe_service_health()
-			return render_template('protpipe/index.html',
+			service_status = check_protsuite_service_health()
+			return render_template('protsuite/index.html',
 				error="Please enter a sequence or accession.",
 				presets=_MOTIF_PRESETS if _MOTIF_AVAILABLE else [],
 				service_status=service_status,
 				initial_run_plan={
 					"enabled_modules": enabled_modules,
-					"runtime_hint": _protpipe_runtime_hint(enabled_modules),
+					"runtime_hint": _protsuite_runtime_hint(enabled_modules),
 				})
 
 		job_id = _pipe_submit(input_data)
-		return redirect(url_for('protpipe_results', job_id=job_id))
+		return redirect(url_for('protsuite_results', job_id=job_id))
 
-	service_status = check_protpipe_service_health()
-	default_modules = _protpipe_enabled_modules({
+	service_status = check_protsuite_service_health()
+	default_modules = _protsuite_enabled_modules({
 		'run_blast': True,
 		'run_hmmer': True,
 		'run_phobius': True,
@@ -1295,24 +1310,24 @@ def protpipe_index():
 		'run_disorderpred': False,
 		'run_sspred_companion': False,
 	})
-	return render_template('protpipe/index.html', error=None,
+	return render_template('protsuite/index.html', error=None,
 		presets=_MOTIF_PRESETS if _MOTIF_AVAILABLE else [],
 		service_status=service_status,
 		initial_run_plan={
 			"enabled_modules": default_modules,
-			"runtime_hint": _protpipe_runtime_hint(default_modules),
+			"runtime_hint": _protsuite_runtime_hint(default_modules),
 		})
 
 
-@app.route('/tools/protpipe/results/<job_id>')
-def protpipe_results(job_id):
+@app.route('/tools/protsuite/results/<job_id>')
+def protsuite_results(job_id):
 	if not _PIPELINE_AVAILABLE:
-		return render_template('protpipe/unavailable.html',
+		return render_template('protsuite/unavailable.html',
 			reason="Pipeline dependencies not installed."), 503
 
 	status_data = _pipe_status(job_id)
 	if status_data.get('status') == 'not_found':
-		default_modules = _protpipe_enabled_modules({
+		default_modules = _protsuite_enabled_modules({
 			'run_blast': True,
 			'run_hmmer': True,
 			'run_phobius': True,
@@ -1325,13 +1340,13 @@ def protpipe_results(job_id):
 			'run_sspred_companion': False,
 		})
 		return render_template(
-			'protpipe/index.html',
+			'protsuite/index.html',
 			error=f"Job '{job_id}' not found.",
-			service_status=check_protpipe_service_health(),
+			service_status=check_protsuite_service_health(),
 			presets=_MOTIF_PRESETS if _MOTIF_AVAILABLE else [],
 			initial_run_plan={
 				"enabled_modules": default_modules,
-				"runtime_hint": _protpipe_runtime_hint(default_modules),
+				"runtime_hint": _protsuite_runtime_hint(default_modules),
 			},
 		), 404
 
@@ -1343,16 +1358,16 @@ def protpipe_results(job_id):
 	elif status_data.get('status') == 'running':
 		summary = _pipe_partial_summary(job_id)
 
-	return render_template('protpipe/results.html',
+	return render_template('protsuite/results.html',
 		job_id=job_id,
 		status_data=status_data,
 		summary=summary,
-		service_status=check_protpipe_service_health(),
+		service_status=check_protsuite_service_health(),
 	)
 
 
-@app.route('/tools/protpipe/status/<job_id>')
-def protpipe_status_api(job_id):
+@app.route('/tools/protsuite/status/<job_id>')
+def protsuite_status_api(job_id):
 	"""JSON polling endpoint — called by the results page every few seconds."""
 	if not _PIPELINE_AVAILABLE:
 		return jsonify({"status": "error"})
@@ -1362,26 +1377,35 @@ def protpipe_status_api(job_id):
 	return jsonify(data)
 
 
-@app.route('/tools/protpipe/figure/<job_id>')
-def protpipe_figure(job_id):
+@app.route('/tools/protsuite/figure/<job_id>')
+def protsuite_figure(job_id):
 	"""
 	Serve the domain architecture figure for a completed job.
-	Checks for PNG (from PROSITE MyDomains) first, then SVG (internal fallback).
+	If the most recently saved figure came from the IBS.js editor, serve that
+	SVG first; otherwise check for PNG (from PROSITE MyDomains), then SVG (internal fallback).
 	"""
 	import os
-	from pipeline.utils.jobs import job_dir as _jdir
+	from pipeline.utils.jobs import job_dir as _jdir, get_summary
 	jd = _jdir(job_id)
+	summary = get_summary(job_id) or {}
+	if summary.get("figure_source") == "ibs":
+		ibs_path = os.path.join(jd, "domain_figure_ibs.svg")
+		if os.path.exists(ibs_path):
+			return send_file(ibs_path, mimetype="image/svg+xml")
 	png_path = os.path.join(jd, "domain_figure.png")
 	if os.path.exists(png_path):
 		return send_file(png_path, mimetype="image/png")
 	svg_path = os.path.join(jd, "domain_figure.svg")
 	if os.path.exists(svg_path):
 		return send_file(svg_path, mimetype="image/svg+xml")
+	ibs_path = os.path.join(jd, "domain_figure_ibs.svg")
+	if os.path.exists(ibs_path):
+		return send_file(ibs_path, mimetype="image/svg+xml")
 	return ("Figure not available", 404)
 
 
-@app.route('/tools/protpipe/annotations/<job_id>')
-def protpipe_annotations_json(job_id):
+@app.route('/tools/protsuite/annotations/<job_id>')
+def protsuite_annotations_json(job_id):
 	"""Return the merged annotations JSON for a completed job."""
 	if not _PIPELINE_AVAILABLE:
 		return jsonify({"error": "Pipeline not available"}), 503
@@ -1395,8 +1419,8 @@ def protpipe_annotations_json(job_id):
 	})
 
 
-@app.route('/tools/protpipe/figure/<job_id>/generate', methods=['POST'])
-def protpipe_generate_figure(job_id):
+@app.route('/tools/protsuite/figure/<job_id>/generate', methods=['POST'])
+def protsuite_generate_figure(job_id):
 	"""Regenerate the domain figure with user-selected annotations."""
 	if not _PIPELINE_AVAILABLE:
 		return jsonify({"error": "Pipeline not available"}), 503
@@ -1435,10 +1459,11 @@ def protpipe_generate_figure(job_id):
 		if fig_result.get("status") == "ok":
 			summary["figure_ok"] = True
 			summary["figure_renderer"] = fig_result.get("renderer", "mydomains")
+			summary["figure_source"] = "prosite"
 			summary["figure_generated_at"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
 			write_result(job_id, "summary.json", summary)
 			set_module_status(job_id, "figures", "complete")
-			return jsonify({"ok": True, "url": f"/tools/protpipe/figure/{job_id}?t={t}"})
+			return jsonify({"ok": True, "url": f"/tools/protsuite/figure/{job_id}?t={t}"})
 		summary["figure_ok"] = False
 		summary["figure_renderer"] = "none"
 		write_result(job_id, "summary.json", summary)
@@ -1449,13 +1474,133 @@ def protpipe_generate_figure(job_id):
 		return jsonify({"ok": False, "error": str(e)}), 500
 
 
-@app.route('/tools/protpipe/archive')
-def protpipe_archive():
+@app.route('/tools/protsuite/figure/<job_id>/save-ibs', methods=['POST'])
+def protsuite_save_ibs_figure(job_id):
+	"""Persist a user-built IBS.js diagram (raw SVG markup) as the job's domain figure."""
+	if not _PIPELINE_AVAILABLE:
+		return jsonify({"error": "Pipeline not available"}), 503
+	from pipeline.utils.jobs import get_summary, job_dir as _job_dir, set_module_status, write_result
+	import time as _time
+
+	summary = get_summary(job_id)
+	if not summary:
+		return jsonify({"error": "Job not found"}), 404
+
+	body = request.get_json(force=True) or {}
+	svg_markup = str(body.get("svg") or "").strip()
+	if not svg_markup.startswith("<svg") and "<svg" not in svg_markup:
+		return jsonify({"ok": False, "error": "No SVG markup provided"}), 400
+
+	jd = _job_dir(job_id)
+	try:
+		with open(os.path.join(jd, "domain_figure_ibs.svg"), "w", encoding="utf-8") as f:
+			f.write(svg_markup)
+		t = int(_time.time())
+		summary["figure_ok"] = True
+		summary["figure_renderer"] = "ibs"
+		summary["figure_source"] = "ibs"
+		summary["figure_generated_at"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+		write_result(job_id, "summary.json", summary)
+		set_module_status(job_id, "figures", "complete")
+		return jsonify({"ok": True, "url": f"/tools/protsuite/figure/{job_id}?t={t}"})
+	except Exception as e:
+		set_module_status(job_id, "figures", "error")
+		return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/tools/protsuite/archive')
+def protsuite_archive():
 	server_jobs = []
 	if _PIPELINE_AVAILABLE:
 		from pipeline.utils.jobs import list_jobs
 		server_jobs = list_jobs(limit=100)
-	return render_template('protpipe/archive.html', server_jobs=server_jobs)
+	return render_template('protsuite/archive.html', server_jobs=server_jobs)
+
+
+@app.route('/tools/protsuite/batch', methods=['POST'])
+def protsuite_batch_submit():
+	"""Submit many sequences/accessions at once — one ProtSuite job per entry."""
+	if not _PIPELINE_AVAILABLE:
+		return render_template('protsuite/unavailable.html',
+			reason="Pipeline dependencies not installed. Run: pip install biopython svgwrite"), 503
+
+	from pipeline.utils.batch_parse import parse_batch_input, BatchTooLargeError
+	from pipeline.utils.jobs import create_batch
+
+	raw_text = request.form.get('batch_input', '')
+	file_contents = []
+	for f in request.files.getlist('batch_files'):
+		if f and f.filename:
+			try:
+				file_contents.append(f.read().decode('utf-8', errors='ignore'))
+			except Exception:
+				pass
+
+	try:
+		entries = parse_batch_input(raw_text, file_contents)
+	except BatchTooLargeError as e:
+		service_status = check_protsuite_service_health()
+		default_modules = _protsuite_enabled_modules({})
+		return render_template('protsuite/index.html',
+			error=str(e),
+			presets=_MOTIF_PRESETS if _MOTIF_AVAILABLE else [],
+			service_status=service_status,
+			initial_run_plan={
+				"enabled_modules": default_modules,
+				"runtime_hint": _protsuite_runtime_hint(default_modules),
+			}), 400
+
+	if not entries:
+		service_status = check_protsuite_service_health()
+		default_modules = _protsuite_enabled_modules({})
+		return render_template('protsuite/index.html',
+			error="No sequences or accessions found in the batch input.",
+			presets=_MOTIF_PRESETS if _MOTIF_AVAILABLE else [],
+			service_status=service_status,
+			initial_run_plan={
+				"enabled_modules": default_modules,
+				"runtime_hint": _protsuite_runtime_hint(default_modules),
+			}), 400
+
+	shared_flags = _protsuite_module_flags_from_form(request.form)
+	batch_jobs = []
+	for entry in entries:
+		input_data = {
+			'input_type':     'auto',
+			'sequence_input': entry.strip(),
+			**shared_flags,
+		}
+		job_id = _pipe_submit(input_data)
+		label = entry.splitlines()[0][:80] if entry.strip().startswith('>') else entry.strip()[:80]
+		batch_jobs.append({"job_id": job_id, "label": label})
+
+	batch_id = create_batch(batch_jobs)
+	return redirect(url_for('protsuite_batch_results', batch_id=batch_id))
+
+
+@app.route('/tools/protsuite/batch/<batch_id>')
+def protsuite_batch_results(batch_id):
+	if not _PIPELINE_AVAILABLE:
+		return render_template('protsuite/unavailable.html',
+			reason="Pipeline dependencies not installed."), 503
+	from pipeline.utils.jobs import get_batch
+	batch = get_batch(batch_id)
+	if not batch:
+		return (f"Batch '{batch_id}' not found", 404)
+	jobs = [{**j, "status": _pipe_status(j["job_id"]).get("status", "unknown")} for j in batch.get("jobs", [])]
+	return render_template('protsuite/batch.html', batch_id=batch_id, jobs=jobs)
+
+
+@app.route('/tools/protsuite/batch/<batch_id>/status')
+def protsuite_batch_status_api(batch_id):
+	if not _PIPELINE_AVAILABLE:
+		return jsonify({"error": "Pipeline not available"}), 503
+	from pipeline.utils.jobs import get_batch
+	batch = get_batch(batch_id)
+	if not batch:
+		return jsonify({"error": "Batch not found"}), 404
+	jobs = [{**j, "status": _pipe_status(j["job_id"]).get("status", "unknown")} for j in batch.get("jobs", [])]
+	return jsonify({"jobs": jobs})
 
 
 def _pipe_partial_summary(job_id):
@@ -1473,8 +1618,8 @@ def _pipe_partial_summary(job_id):
 	return partial
 
 
-@app.route('/tools/protpipe/download/<job_id>/json')
-def protpipe_download_json(job_id):
+@app.route('/tools/protsuite/download/<job_id>/json')
+def protsuite_download_json(job_id):
 	if not _PIPELINE_AVAILABLE:
 		return ("Pipeline not available", 503)
 	from pipeline.utils.jobs import job_dir, get_summary
@@ -1487,12 +1632,12 @@ def protpipe_download_json(job_id):
 		io.BytesIO(data.encode()),
 		mimetype="application/json",
 		as_attachment=True,
-		attachment_filename=f"protpipe_{job_id}.json",
+		attachment_filename=f"protsuite_{job_id}.json",
 	)
 
 
-@app.route('/tools/protpipe/download/<job_id>/figure')
-def protpipe_download_figure(job_id):
+@app.route('/tools/protsuite/download/<job_id>/figure')
+def protsuite_download_figure(job_id):
 	"""Download domain figure — PNG preferred (MyDomains), SVG fallback."""
 	if not _PIPELINE_AVAILABLE:
 		return ("Pipeline not available", 503)
@@ -1504,7 +1649,7 @@ def protpipe_download_figure(job_id):
 			png_path,
 			mimetype="image/png",
 			as_attachment=True,
-			attachment_filename=f"protpipe_{job_id}_figure.png",
+			attachment_filename=f"protsuite_{job_id}_figure.png",
 		)
 	svg_path = os.path.join(jd, "domain_figure.svg")
 	if os.path.exists(svg_path):
@@ -1512,19 +1657,19 @@ def protpipe_download_figure(job_id):
 			svg_path,
 			mimetype="image/svg+xml",
 			as_attachment=True,
-			attachment_filename=f"protpipe_{job_id}_figure.svg",
+			attachment_filename=f"protsuite_{job_id}_figure.svg",
 		)
 	return ("Figure not available", 404)
 
 
 # Keep old SVG-only route for backward compat
-@app.route('/tools/protpipe/download/<job_id>/svg')
-def protpipe_download_svg(job_id):
-	return protpipe_download_figure(job_id)
+@app.route('/tools/protsuite/download/<job_id>/svg')
+def protsuite_download_svg(job_id):
+	return protsuite_download_figure(job_id)
 
 
-@app.route('/tools/protpipe/download/<job_id>/txt')
-def protpipe_download_txt(job_id):
+@app.route('/tools/protsuite/download/<job_id>/txt')
+def protsuite_download_txt(job_id):
 	if not _PIPELINE_AVAILABLE:
 		return ("Pipeline not available", 503)
 	from pipeline.utils.jobs import get_summary
@@ -1537,7 +1682,7 @@ def protpipe_download_txt(job_id):
 		io.BytesIO(lines.encode()),
 		mimetype="text/plain",
 		as_attachment=True,
-		attachment_filename=f"protpipe_{job_id}.txt",
+		attachment_filename=f"protsuite_{job_id}.txt",
 	)
 
 
@@ -1551,7 +1696,7 @@ def _make_text_report(job_id, summary):
 	"""
 	lines = []
 	lines.append("=" * 60)
-	lines.append("ProtPipe — Protein Analysis Report")
+	lines.append("ProtSuite — Protein Analysis Report")
 	lines.append(f"Job ID : {job_id}")
 	lines.append(f"Date   : {summary.get('completed_at', 'N/A')}")
 	lines.append("=" * 60)
@@ -1608,13 +1753,13 @@ def _make_text_report(job_id, summary):
 			lines.append(f"Topology       : {phob['topology']}")
 
 	lines.append("\n" + "=" * 60)
-	lines.append("Generated by ProtPipe — Singh Lab, Brooklyn College")
+	lines.append("Generated by ProtSuite — Singh Lab, Brooklyn College")
 	lines.append("=" * 60)
 	return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
-# StructMap — map completed ProtPipe annotations into a cleaner architecture
+# StructMap — map completed ProtSuite annotations into a cleaner architecture
 # ---------------------------------------------------------------------------
 
 @app.route('/tools/structmap', methods=['GET', 'POST'])
@@ -1627,7 +1772,7 @@ def structmap_index():
 	if request.method == 'POST':
 		job_id = (request.form.get('job_id') or '').strip()
 		if not job_id:
-			return render_template('structmap/index.html', error="Enter a completed ProtPipe job ID.", recent_jobs=recent_jobs), 400
+			return render_template('structmap/index.html', error="Enter a completed ProtSuite job ID.", recent_jobs=recent_jobs), 400
 		return redirect(url_for('structmap_results', job_id=job_id))
 
 	return render_template('structmap/index.html', error=None, recent_jobs=recent_jobs)
@@ -1636,14 +1781,14 @@ def structmap_index():
 @app.route('/tools/structmap/<job_id>')
 def structmap_results(job_id):
 	if not _PIPELINE_AVAILABLE:
-		return render_template('protpipe/unavailable.html',
+		return render_template('protsuite/unavailable.html',
 			reason="Pipeline dependencies not installed."), 503
 
 	from pipeline.utils.jobs import get_summary
 
 	summary = get_summary(job_id)
 	if not summary:
-		return render_template('structmap/index.html', error=f"ProtPipe job '{job_id}' was not found or is not complete.", recent_jobs=[]), 404
+		return render_template('structmap/index.html', error=f"ProtSuite job '{job_id}' was not found or is not complete.", recent_jobs=[]), 404
 
 	map_data = structmap_service.build(summary, job_id)
 	return render_template('structmap/results.html', job_id=job_id, summary=summary, map_data=map_data)

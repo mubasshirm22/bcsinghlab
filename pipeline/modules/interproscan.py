@@ -63,7 +63,7 @@ def run(sequence: str, job_dir: str) -> dict:
     # ------------------------------------------------------------------
     form_data = [
         ("email",    _EMAIL),
-        ("title",    "ProtPipe-job"),
+        ("title",    "ProtSuite-job"),
         ("sequence", f">Sequence1\n{sequence}"),
         ("goterms",  "false"),
         ("pathways", "false"),
