@@ -31,6 +31,19 @@
   color: var(--text-secondary);
   line-height: 1.5;
 }
+.cms-field { display: grid; gap: 5px; }
+.cms-field > span { font-size: 0.82rem; font-weight: 600; color: var(--text-secondary); }
+.cms-field input, .cms-field textarea, .cms-field select {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.92rem;
+  font-family: inherit;
+  width: 100%;
+}
+.cms-field textarea { resize: vertical; }
+.cms-subcard { border: 1px solid var(--border); border-radius: 12px; padding: 14px; background: #fff; }
+.cms-subcard.add { border-style: dashed; }
 </style>
 {% endblock %}
 
@@ -55,7 +68,9 @@
     <div class="pipe-form-section" style="margin-bottom:20px;background:#f8fafc;">
       <div class="pipe-form-section-title">Quick Navigation</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <a class="btn-lab btn-lab-outline btn-sm" href="#home-page">Home Page</a>
         <a class="btn-lab btn-lab-outline btn-sm" href="#announcements">Announcements</a>
+        <a class="btn-lab btn-lab-outline btn-sm" href="#tutorials">Tutorials</a>
         <a class="btn-lab btn-lab-outline btn-sm" href="#team-page">Team Page</a>
         <a class="btn-lab btn-lab-outline btn-sm" href="#team-members">Team Members</a>
         <a class="btn-lab btn-lab-outline btn-sm" href="#contact-page">Contact</a>
@@ -66,6 +81,30 @@
       </div>
     </div>
     <div style="display:grid;gap:20px;">
+
+      <div class="pipe-form-section" id="home-page">
+        <div class="pipe-form-section-title">Home Page</div>
+        <form method="POST" action="/admin/cms">
+          <input type="hidden" name="action" value="save_home_page">
+          <div style="display:grid;gap:12px;">
+            <div style="font-size:0.8rem;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.06em;">Hero</div>
+            <label class="cms-field"><span>Eyebrow (small line above title)</span>
+              <input type="text" name="eyebrow" value="{{ home_extra.eyebrow }}"></label>
+            <label class="cms-field"><span>Title</span>
+              <input type="text" name="hero_title" value="{{ home_extra.title }}"></label>
+            <label class="cms-field"><span>Tagline (large line under title)</span>
+              <input type="text" name="tagline" value="{{ home_extra.tagline }}"></label>
+            <div style="font-size:0.8rem;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:.06em;margin-top:6px;">About Section</div>
+            <label class="cms-field"><span>About label</span>
+              <input type="text" name="about_label" value="{{ home_extra.about_label }}"></label>
+            <label class="cms-field"><span>About heading</span>
+              <input type="text" name="about_title" value="{{ home_extra.about_title }}"></label>
+            <label class="cms-field"><span>About body (blank line separates paragraphs)</span>
+              <textarea name="about_body" rows="5">{{ home_extra.about_body }}</textarea></label>
+          </div>
+          <div style="margin-top:14px;"><button class="btn-lab btn-lab-primary btn-sm" type="submit">Save Home Page</button></div>
+        </form>
+      </div>
 
       <div class="pipe-form-section" id="announcements">
         <div class="pipe-form-section-title">Announcements</div>
@@ -103,6 +142,94 @@
             <input type="number" name="sort_order" value="0" style="padding:10px;border:1px solid var(--border);border-radius:8px;">
             <button class="btn-lab btn-lab-primary btn-sm" type="submit">Add</button>
           </div>
+        </form>
+      </div>
+
+      <div class="pipe-form-section" id="tutorials">
+        <div class="pipe-form-section-title">Tutorials</div>
+
+        <form method="POST" action="/admin/cms" style="margin-bottom:18px;">
+          <input type="hidden" name="action" value="save_tutorials_page">
+          <div style="display:grid;gap:10px;">
+            <label class="cms-field"><span>Page title</span>
+              <input type="text" name="title" value="{{ tutorials_page.title }}"></label>
+            <label class="cms-field"><span>Page subtitle</span>
+              <input type="text" name="subtitle" value="{{ tutorials_page.subtitle }}"></label>
+          </div>
+          <div style="margin-top:12px;"><button class="btn-lab btn-lab-primary btn-sm" type="submit">Save Page Header</button></div>
+        </form>
+
+        {% for section in tutorial_sections %}
+        <div class="cms-subcard" style="margin-bottom:16px;">
+          <form method="POST" action="/admin/cms" style="display:grid;gap:10px;margin-bottom:14px;">
+            <input type="hidden" name="action" value="save_tutorial_section">
+            <input type="hidden" name="section_id" value="{{ section.id }}">
+            <div style="display:grid;grid-template-columns:1fr 90px;gap:10px;">
+              <label class="cms-field"><span>Section title</span>
+                <input type="text" name="section_title" value="{{ section.title }}"></label>
+              <label class="cms-field"><span>Order</span>
+                <input type="number" name="sort_order" value="{{ section.sort_order or 0 }}"></label>
+            </div>
+            <label class="cms-field"><span>Section description</span>
+              <input type="text" name="section_description" value="{{ section.description }}"></label>
+            <div style="display:flex;gap:8px;">
+              <button class="btn-lab btn-lab-primary btn-sm" type="submit">Save Section</button>
+              <button class="btn-lab btn-lab-outline btn-sm" type="submit" name="action" value="delete_tutorial_section" formaction="/admin/cms">Delete Section</button>
+            </div>
+          </form>
+
+          <div style="border-top:1px solid var(--border);padding-top:12px;display:grid;gap:10px;">
+            <div style="font-size:0.78rem;font-weight:700;color:var(--text-light);text-transform:uppercase;">Tutorials in this section</div>
+            {% for item in section['items'] %}
+            <form method="POST" action="/admin/cms" enctype="multipart/form-data" style="border:1px solid var(--border);border-radius:10px;padding:12px;display:grid;gap:8px;">
+              <input type="hidden" name="action" value="save_tutorial_item">
+              <input type="hidden" name="item_id" value="{{ item.id }}">
+              <input type="hidden" name="section_id" value="{{ section.id }}">
+              <label class="cms-field"><span>Title</span><input type="text" name="item_title" value="{{ item.title }}"></label>
+              <label class="cms-field"><span>Description</span><textarea name="item_body" rows="2">{{ item.body }}</textarea></label>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <label class="cms-field"><span>Link text</span><input type="text" name="link_text" value="{{ item.link_text }}"></label>
+                <label class="cms-field"><span>Link URL</span><input type="text" name="link_url" value="{{ item.link_url }}"></label>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <label class="cms-field"><span>Document label</span><input type="text" name="doc_label" value="{{ item.doc_label }}" placeholder="e.g. User Guide (PDF)"></label>
+                <label class="cms-field"><span>{% if item.doc_path %}Replace document{% else %}Upload document{% endif %}</span><input type="file" name="doc_file"></label>
+              </div>
+              {% if item.doc_path %}<div style="font-size:0.78rem;"><a href="{{ item.doc_path }}" target="_blank" rel="noopener">Current file ↗</a></div>{% endif %}
+              <div style="display:flex;gap:8px;align-items:center;">
+                <label class="cms-field" style="width:90px;"><span>Order</span><input type="number" name="sort_order" value="{{ item.sort_order or 0 }}"></label>
+                <button class="btn-lab btn-lab-primary btn-sm" type="submit">Save</button>
+                <button class="btn-lab btn-lab-outline btn-sm" type="submit" name="action" value="delete_tutorial_item" formaction="/admin/cms">Delete</button>
+              </div>
+            </form>
+            {% endfor %}
+
+            <form method="POST" action="/admin/cms" enctype="multipart/form-data" class="cms-subcard add" style="display:grid;gap:8px;">
+              <input type="hidden" name="action" value="save_tutorial_item">
+              <input type="hidden" name="section_id" value="{{ section.id }}">
+              <div style="font-size:0.8rem;font-weight:700;">Add a tutorial to “{{ section.title }}”</div>
+              <label class="cms-field"><span>Title</span><input type="text" name="item_title" placeholder="Tutorial title"></label>
+              <label class="cms-field"><span>Description</span><textarea name="item_body" rows="2"></textarea></label>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <label class="cms-field"><span>Link text</span><input type="text" name="link_text"></label>
+                <label class="cms-field"><span>Link URL</span><input type="text" name="link_url"></label>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <label class="cms-field"><span>Document label</span><input type="text" name="doc_label"></label>
+                <label class="cms-field"><span>Upload document (PDF, etc.)</span><input type="file" name="doc_file"></label>
+              </div>
+              <div><button class="btn-lab btn-lab-primary btn-sm" type="submit">Add Tutorial</button></div>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+
+        <form method="POST" action="/admin/cms" class="cms-subcard add" style="display:grid;gap:10px;">
+          <input type="hidden" name="action" value="save_tutorial_section">
+          <div style="font-size:0.85rem;font-weight:700;">Add a new section</div>
+          <label class="cms-field"><span>Section title</span><input type="text" name="section_title" placeholder="e.g. ProtSuite Guides"></label>
+          <label class="cms-field"><span>Section description</span><input type="text" name="section_description"></label>
+          <div><button class="btn-lab btn-lab-primary btn-sm" type="submit">Add Section</button></div>
         </form>
       </div>
 
@@ -249,35 +376,48 @@
       {% if current_user.role == 'admin' %}
       <div class="pipe-form-section" id="cms-users">
         <div class="pipe-form-section-title">CMS Users</div>
-        <div style="display:grid;gap:10px;margin-bottom:14px;">
+        <p style="font-size:0.86rem;color:var(--text-secondary);margin-bottom:14px;">
+          Add users who can sign in with a <strong>username &amp; password</strong>, or approve Google accounts by email.
+          Leave the password blank when editing to keep the current one.
+        </p>
+        <div style="display:grid;gap:10px;margin-bottom:16px;">
           {% for item in cms_users %}
-          <form method="POST" action="/admin/cms" style="display:grid;grid-template-columns:1fr 140px 140px auto auto;gap:10px;align-items:center;border:1px solid var(--border);border-radius:10px;padding:12px;background:#fff;">
+          <form method="POST" action="/admin/cms" class="cms-subcard" style="display:grid;grid-template-columns:1.4fr 1fr 130px 120px auto auto;gap:10px;align-items:end;">
             <input type="hidden" name="action" value="save_user">
-            <input type="text" name="email" value="{{ item.email }}" readonly style="padding:10px;border:1px solid var(--border);border-radius:8px;background:#f8fafc;">
-            <select name="role" style="padding:10px;border:1px solid var(--border);border-radius:8px;">
-              <option value="editor" {% if item.role == 'editor' %}selected{% endif %}>Editor</option>
-              <option value="admin" {% if item.role == 'admin' %}selected{% endif %}>Admin</option>
-            </select>
-            <select name="active" style="padding:10px;border:1px solid var(--border);border-radius:8px;">
-              <option value="1" {% if item.active %}selected{% endif %}>Active</option>
-              <option value="0" {% if not item.active %}selected{% endif %}>Inactive</option>
-            </select>
+            <label class="cms-field"><span>Username / email</span>
+              <input type="text" name="email" value="{{ item.email }}" readonly style="background:var(--bg);"></label>
+            <label class="cms-field"><span>{% if item.has_password %}New password (blank = keep){% else %}Set a password{% endif %}</span>
+              <input type="password" name="password" autocomplete="new-password" placeholder="{% if item.has_password %}••••••••{% else %}(none set){% endif %}"></label>
+            <label class="cms-field"><span>Role</span>
+              <select name="role">
+                <option value="editor" {% if item.role == 'editor' %}selected{% endif %}>Editor</option>
+                <option value="admin" {% if item.role == 'admin' %}selected{% endif %}>Admin</option>
+              </select></label>
+            <label class="cms-field"><span>Status</span>
+              <select name="active">
+                <option value="1" {% if item.active %}selected{% endif %}>Active</option>
+                <option value="0" {% if not item.active %}selected{% endif %}>Inactive</option>
+              </select></label>
             <button class="btn-lab btn-lab-primary btn-sm" type="submit">Save</button>
             <button class="btn-lab btn-lab-outline btn-sm" type="submit" formaction="/admin/cms" formmethod="post" name="action" value="delete_user">Delete</button>
           </form>
           {% endfor %}
         </div>
 
-        <form method="POST" action="/admin/cms" style="display:grid;grid-template-columns:1fr 140px auto;gap:10px;">
-          <input type="hidden" name="action" value="save_user">
-          <input type="email" name="email" placeholder="new.user@example.edu" style="padding:10px;border:1px solid var(--border);border-radius:8px;">
-          <select name="role" style="padding:10px;border:1px solid var(--border);border-radius:8px;">
-            <option value="editor">Editor</option>
-            <option value="admin">Admin</option>
-          </select>
-          <button class="btn-lab btn-lab-primary btn-sm" type="submit">Add User</button>
-          <input type="hidden" name="active" value="1">
-        </form>
+        <div class="cms-subcard add">
+          <div style="font-size:0.85rem;font-weight:700;margin-bottom:10px;">Add a new user</div>
+          <form method="POST" action="/admin/cms" style="display:grid;grid-template-columns:1.4fr 1fr 130px auto;gap:10px;align-items:end;">
+            <input type="hidden" name="action" value="save_user">
+            <input type="hidden" name="active" value="1">
+            <label class="cms-field"><span>Username or email</span>
+              <input type="text" name="email" placeholder="e.g. jdoe or jdoe@bc.edu" required></label>
+            <label class="cms-field"><span>Password (for username login)</span>
+              <input type="password" name="password" autocomplete="new-password" placeholder="leave blank for Google-only"></label>
+            <label class="cms-field"><span>Role</span>
+              <select name="role"><option value="editor">Editor</option><option value="admin">Admin</option></select></label>
+            <button class="btn-lab btn-lab-primary btn-sm" type="submit">Add User</button>
+          </form>
+        </div>
       </div>
       {% endif %}
     </div>

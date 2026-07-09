@@ -5,7 +5,9 @@
 	<script src="{{ url_for('static', filename='scripts/html2canvas.js') }}"></script>
 	<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}?v=2.1">
 	<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/tooltip.css') }}">
-	<meta name='autorefresh' http-equiv='refresh' content='30'>
+	<!-- Live updates are handled by JS polling (see setInterval(pollForUpdates, 3000)).
+	     A static meta-refresh used to wipe color-coding and generated images every 30s. -->
+	{% block ss_head_extra %}{% endblock %}
 {% endblock %}
 
 {% block content %}
@@ -228,9 +230,18 @@
 								<label><input type="checkbox" id="pub-legend" checked> Show legend</label>
 								<label><input type="checkbox" id="pub-clean"> Clean figure mode</label>
 								<label class="enableWithPDB"><input type="checkbox" id="pub-compare"> Highlight consensus mismatches</label>
+								<label><input type="checkbox" id="pub-hydropathy"> Kyte-Doolittle hydropathy track</label>
 							</div>
+							<div id="pub-hydro-window-wrap" style="margin-top:8px;display:none;align-items:center;gap:8px;">
+								<span style="font-size:0.82rem;color:var(--text-secondary);">Window</span>
+								<input type="number" id="pub-hydro-window" value="9" min="3" max="25" step="2" style="width:70px;">
+								<span style="font-size:0.76rem;color:var(--text-light);">residues (odd)</span>
+							</div>
+							<label style="font-size:0.78rem;font-weight:700;color:var(--text-light);text-transform:uppercase;display:block;margin-top:14px;">Domain Architecture</label>
+							<textarea id="pub-domains" rows="3" style="margin-top:8px;font-family:monospace;" placeholder="10-95: Kinase&#10;120-210: PH domain #7c3aed"></textarea>
+							<div style="font-size:0.76rem;color:var(--text-light);margin-top:6px;">Format: <code>start-end: label</code> (optional <code>#hex</code> color)</div>
 							<label style="font-size:0.78rem;font-weight:700;color:var(--text-light);text-transform:uppercase;display:block;margin-top:14px;">Annotated Regions</label>
-							<textarea id="pub-regions" rows="5" style="margin-top:8px;font-family:monospace;" placeholder="25-48: Helix-rich region&#10;120-155: Beta sheet patch"></textarea>
+							<textarea id="pub-regions" rows="3" style="margin-top:8px;font-family:monospace;" placeholder="25-48: Helix-rich region&#10;120-155: Beta sheet patch"></textarea>
 							<div style="font-size:0.76rem;color:var(--text-light);margin-top:6px;">Format: <code>start-end: label</code></div>
 						</div>
 					</div>
@@ -253,6 +264,56 @@
 						</div>
 						<div id="pub-figure-error" style="display:none;margin-top:10px;padding:10px 12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;color:#9a3412;font-size:0.82rem;"></div>
 					</div>
+				</div>
+
+				<div class="form-section">
+					<div class="form-section-title" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+						<span>Sequence Analysis</span>
+						<button id="analysis-refresh" class="btn btn-secondary" type="button" style="padding:5px 12px;font-size:0.8rem;">Refresh</button>
+					</div>
+					<p style="font-size:0.86rem;color:var(--text-secondary);margin:2px 0 16px;">Biophysical properties, amino-acid composition, secondary-structure content, and (when a known structure is provided) Q3 prediction accuracy.</p>
+					<div id="analysis-loading" style="font-size:0.85rem;color:var(--text-light);">Loading analysis…</div>
+					<div id="analysis-content" style="display:none;">
+
+						<div class="analysis-grid">
+							<div class="analysis-card">
+								<div class="analysis-card-title">Biophysical Properties</div>
+								<div id="analysis-stats" class="analysis-stat-grid"></div>
+							</div>
+							<div class="analysis-card">
+								<div class="analysis-card-title">Secondary-Structure Content</div>
+								<div id="analysis-sscontent"></div>
+							</div>
+						</div>
+
+						<div class="analysis-grid" style="margin-top:16px;">
+							<div class="analysis-card">
+								<div class="analysis-card-title">Residue-Group Composition</div>
+								<div id="analysis-composition"></div>
+							</div>
+							<div class="analysis-card" id="analysis-accuracy-card">
+								<div class="analysis-card-title">Prediction Accuracy vs. Known Structure (Q3)</div>
+								<div id="analysis-accuracy"></div>
+							</div>
+						</div>
+
+						<div class="analysis-card" style="margin-top:16px;">
+							<div class="analysis-card-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+								<span>Kyte-Doolittle Hydropathy Plot</span>
+								<span id="analysis-hydro-summary" style="font-size:0.78rem;font-weight:500;color:var(--text-light);"></span>
+							</div>
+							<div id="analysis-hydro-wrap" style="overflow-x:auto;">
+								<svg id="analysis-hydro-svg" width="100%" height="180" preserveAspectRatio="none" style="min-width:520px;display:block;"></svg>
+							</div>
+							<div style="font-size:0.76rem;color:var(--text-light);margin-top:6px;">Positive values (above the midline) are hydrophobic; sustained peaks above ~1.6 suggest transmembrane segments.</div>
+						</div>
+
+						<div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
+							<button id="analysis-export-fasta" class="btn btn-secondary" type="button">Download Aligned Tracks (FASTA/TXT)</button>
+							<a id="analysis-export-json" class="btn btn-secondary" href="#" target="_blank" rel="noopener">Download Analysis JSON</a>
+						</div>
+					</div>
+					<div id="analysis-error" style="display:none;margin-top:10px;padding:10px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#991b1b;font-size:0.82rem;"></div>
 				</div>
 
 				<div class="form-section">
@@ -742,6 +803,10 @@
 		params.set('compare', document.getElementById('pub-compare') && document.getElementById('pub-compare').checked ? '1' : '0');
 		params.set('title', (document.getElementById('pub-title') || { value: '' }).value || 'SSPred Secondary Structure Summary');
 		params.set('regions', (document.getElementById('pub-regions') || { value: '' }).value || '');
+		params.set('domains', (document.getElementById('pub-domains') || { value: '' }).value || '');
+		var hydroEl = document.getElementById('pub-hydropathy');
+		params.set('show_hydropathy', hydroEl && hydroEl.checked ? '1' : '0');
+		params.set('hydropathy_window', (document.getElementById('pub-hydro-window') || { value: 9 }).value || 9);
 		var selectedPredictors = Array.prototype.slice.call(document.querySelectorAll('.pub-predictor:checked')).map(function(node) {
 			return node.value;
 		});
@@ -1178,7 +1243,212 @@
 	bindClick('pub-render', function() {
 		renderPublicationFigure();
 	});
-	
+
+	// Toggle the hydropathy window control with its checkbox.
+	(function() {
+		var hydroToggle = document.getElementById('pub-hydropathy');
+		var windowWrap = document.getElementById('pub-hydro-window-wrap');
+		if (hydroToggle && windowWrap) {
+			hydroToggle.addEventListener('change', function() {
+				windowWrap.style.display = hydroToggle.checked ? 'flex' : 'none';
+			});
+		}
+	})();
+
+	// ----------------------------------------------------------------------
+	// Sequence Analysis panel
+	// ----------------------------------------------------------------------
+	var analysisData = null;
+
+	function fmtNumber(value, suffix) {
+		if (value === null || value === undefined) return '—';
+		return value.toLocaleString() + (suffix || '');
+	}
+
+	function renderAnalysisStats(stats) {
+		var wrap = document.getElementById('analysis-stats');
+		if (!wrap) return;
+		var rows = [
+			['Length', fmtNumber(stats.length, ' aa')],
+			['Molecular weight', stats.molecular_weight ? fmtNumber(Math.round(stats.molecular_weight)) + ' Da' : '—'],
+			['Isoelectric point (pI)', stats.isoelectric_point != null ? stats.isoelectric_point : '—'],
+			['GRAVY (hydropathy)', stats.gravy != null ? stats.gravy : '—'],
+			['Aromaticity', stats.aromaticity != null ? stats.aromaticity : '—'],
+			['Net charge (pH 7)', stats.net_charge_ph7 != null ? stats.net_charge_ph7 : '—'],
+			['Extinction coeff. (280 nm)', stats.extinction_reduced != null ? fmtNumber(stats.extinction_reduced) + ' M⁻¹cm⁻¹' : '—']
+		];
+		if (stats.instability_index != null) {
+			rows.push(['Instability index', stats.instability_index + (stats.stable ? ' (stable)' : ' (unstable)')]);
+		}
+		wrap.innerHTML = rows.map(function(r) {
+			return '<div class="analysis-stat"><span class="analysis-stat-label">' + escapeHtml(r[0]) +
+				'</span><span class="analysis-stat-value">' + escapeHtml(String(r[1])) + '</span></div>';
+		}).join('');
+	}
+
+	function ssBar(content) {
+		var parts = [
+			['Helix', content.helix, 'var(--ss-h, #2563eb)'],
+			['Strand', content.strand, 'var(--ss-e, #059669)'],
+			['Coil', content.coil, 'var(--ss-c, #d97706)']
+		];
+		var bar = parts.map(function(p) {
+			return '<span title="' + p[0] + ' ' + p[1] + '%" style="width:' + p[1] + '%;background:' + p[2] + ';"></span>';
+		}).join('');
+		var legend = parts.map(function(p) {
+			return '<span class="ss-legend-item"><span class="ss-swatch" style="background:' + p[2] + ';"></span>' + p[0] + ' ' + p[1] + '%</span>';
+		}).join('');
+		return '<div class="ss-bar">' + bar + '</div><div class="ss-legend">' + legend + '</div>';
+	}
+
+	function renderSsContent(list) {
+		var wrap = document.getElementById('analysis-sscontent');
+		if (!wrap) return;
+		if (!list || !list.length) {
+			wrap.innerHTML = '<div style="font-size:0.83rem;color:var(--text-light);">Secondary-structure content appears once predictions complete.</div>';
+			return;
+		}
+		wrap.innerHTML = list.map(function(item) {
+			return '<div class="ss-row"><div class="ss-row-name">' + escapeHtml(item.name) + '</div>' + ssBar(item.content) + '</div>';
+		}).join('');
+	}
+
+	function renderComposition(comp) {
+		var wrap = document.getElementById('analysis-composition');
+		if (!wrap || !comp) return;
+		wrap.innerHTML = comp.groups.map(function(g) {
+			return '<div class="ss-row"><div class="ss-row-name" style="min-width:0;">' + escapeHtml(g.label) +
+				'</div><div class="ss-bar"><span style="width:' + g.percent + '%;background:var(--accent, #2563eb);"></span></div>' +
+				'<div style="font-size:0.8rem;color:var(--text-secondary);white-space:nowrap;">' + g.percent + '% (' + g.count + ')</div></div>';
+		}).join('');
+	}
+
+	function renderAccuracy(accuracy, hasReference) {
+		var card = document.getElementById('analysis-accuracy-card');
+		var wrap = document.getElementById('analysis-accuracy');
+		if (!wrap) return;
+		if (!hasReference || !accuracy || !accuracy.length) {
+			if (card) card.style.display = 'none';
+			return;
+		}
+		if (card) card.style.display = '';
+		wrap.innerHTML = accuracy.map(function(item) {
+			var q3 = item.score && item.score.q3 != null ? item.score.q3 : null;
+			var label = q3 != null ? (q3 + '%') : 'n/a';
+			var width = q3 != null ? q3 : 0;
+			var color = q3 == null ? '#94a3b8' : (q3 >= 80 ? '#059669' : (q3 >= 65 ? '#d97706' : '#dc2626'));
+			return '<div class="ss-row"><div class="ss-row-name">' + escapeHtml(item.name) +
+				'</div><div class="ss-bar"><span style="width:' + width + '%;background:' + color + ';"></span></div>' +
+				'<div style="font-size:0.82rem;font-weight:700;color:' + color + ';white-space:nowrap;">' + label + '</div></div>';
+		}).join('');
+	}
+
+	function renderHydropathySvg(hydro) {
+		var svg = document.getElementById('analysis-hydro-svg');
+		var summary = document.getElementById('analysis-hydro-summary');
+		if (!svg) return;
+		while (svg.firstChild) svg.removeChild(svg.firstChild);
+		var values = hydro && hydro.values ? hydro.values : [];
+		if (!values.length) {
+			if (summary) summary.textContent = '';
+			return;
+		}
+		if (summary) {
+			summary.textContent = 'window ' + hydro.window + ' · GRAVY ' + hydro.gravy +
+				' · max ' + hydro.max + ' · min ' + hydro.min;
+		}
+		var W = Math.max(520, values.length * 3), H = 180, pad = 28, scaleMax = 4.5;
+		svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+		svg.style.minWidth = Math.min(W, 2400) + 'px';
+		var NS = 'http://www.w3.org/2000/svg';
+		var midY = H / 2;
+		function yFor(v) {
+			var c = Math.max(-scaleMax, Math.min(scaleMax, v));
+			return midY - (c / scaleMax) * (midY - pad);
+		}
+		function xFor(i) { return pad + (i / (values.length - 1 || 1)) * (W - 2 * pad); }
+		// gridlines at +1.6 (TM threshold) and midline
+		[[1.6, '#fca5a5'], [0, '#cbd5e1'], [-1.6, '#fca5a5']].forEach(function(g) {
+			var ln = document.createElementNS(NS, 'line');
+			ln.setAttribute('x1', pad); ln.setAttribute('x2', W - pad);
+			ln.setAttribute('y1', yFor(g[0])); ln.setAttribute('y2', yFor(g[0]));
+			ln.setAttribute('stroke', g[1]); ln.setAttribute('stroke-width', '1');
+			if (g[0] !== 0) ln.setAttribute('stroke-dasharray', '4,4');
+			svg.appendChild(ln);
+		});
+		var d = 'M ' + xFor(0) + ' ' + midY;
+		for (var i = 0; i < values.length; i++) d += ' L ' + xFor(i) + ' ' + yFor(values[i]);
+		d += ' L ' + xFor(values.length - 1) + ' ' + midY + ' Z';
+		var area = document.createElementNS(NS, 'path');
+		area.setAttribute('d', d); area.setAttribute('fill', '#0ea5e9'); area.setAttribute('fill-opacity', '0.15');
+		svg.appendChild(area);
+		var line = 'M';
+		for (var j = 0; j < values.length; j++) line += ' ' + xFor(j) + ' ' + yFor(values[j]);
+		var path = document.createElementNS(NS, 'path');
+		path.setAttribute('d', line); path.setAttribute('fill', 'none');
+		path.setAttribute('stroke', '#0284c7'); path.setAttribute('stroke-width', '1.6');
+		svg.appendChild(path);
+	}
+
+	function loadAnalysis() {
+		var loading = document.getElementById('analysis-loading');
+		var content = document.getElementById('analysis-content');
+		var errorBox = document.getElementById('analysis-error');
+		if (!loading || !content) return;
+		if (errorBox) errorBox.style.display = 'none';
+		fetch('/tools/sspred/analysis/' + jobId + '?_ts=' + Date.now())
+			.then(function(r) { return r.json(); })
+			.then(function(data) {
+				if (data.error) throw new Error(data.error);
+				analysisData = data;
+				renderAnalysisStats(data.stats || {});
+				renderSsContent(data.ss_content || []);
+				renderComposition(data.composition || {});
+				renderAccuracy(data.accuracy || [], data.has_reference);
+				renderHydropathySvg(data.hydropathy || {});
+				var jsonLink = document.getElementById('analysis-export-json');
+				if (jsonLink) jsonLink.href = '/tools/sspred/analysis/' + jobId;
+				loading.style.display = 'none';
+				content.style.display = 'block';
+			})
+			.catch(function(err) {
+				loading.style.display = 'none';
+				if (errorBox) {
+					errorBox.style.display = 'block';
+					errorBox.textContent = 'Could not load sequence analysis: ' + err.message;
+				}
+			});
+	}
+
+	function exportAlignedTracks() {
+		var lineLen = 60;
+		var seq = (a && a[0] && a[0].seq) ? a[0].seq : '';
+		if (!seq) { alert('Sequence not available yet.'); return; }
+		var tracks = [['Sequence', seq]];
+		if (a[0].majorityvote) tracks.push(['Consensus', a[0].majorityvote]);
+		completedPredictorNames().forEach(function(name) {
+			var key = name.toLowerCase() + 'pred';
+			for (var k in a[0]) { if (k.toLowerCase() === key && a[0][k]) tracks.push([name, a[0][k]]); }
+		});
+		var out = '# SSPred aligned tracks — job ' + jobId + '\n';
+		for (var start = 0; start < seq.length; start += lineLen) {
+			out += '\n' + String(start + 1).padStart(6) + '\n';
+			tracks.forEach(function(t) {
+				out += t[0].padEnd(14) + ' ' + (t[1] || '').substring(start, start + lineLen) + '\n';
+			});
+		}
+		var blob = new Blob([out], { type: 'text/plain' });
+		var url = URL.createObjectURL(blob);
+		var link = document.createElement('a');
+		link.href = url; link.download = 'sspred_' + jobId + '_tracks.txt';
+		document.body.appendChild(link); link.click(); document.body.removeChild(link);
+		URL.revokeObjectURL(url);
+	}
+
+	bindClick('analysis-refresh', loadAnalysis);
+	bindClick('analysis-export-fasta', exportAlignedTracks);
+	loadAnalysis();
+
 	function updateColors(hcolor, ccolor, ecolor) {
 		// Update colors for both views
 		var clist = document.getElementsByClassName('c');

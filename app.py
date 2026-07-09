@@ -343,12 +343,15 @@ def _sspred_figure_options():
 		"show_consensus": _arg_bool("show_consensus", True),
 		"show_pdb": _arg_bool("show_pdb", True),
 		"show_confidence": _arg_bool("show_confidence", True),
+		"show_hydropathy": _arg_bool("show_hydropathy", False),
+		"hydropathy_window": request.args.get("hydropathy_window", options["hydropathy_window"]),
 		"legend": _arg_bool("legend", True),
 		"clean": _arg_bool("clean", False),
 		"compare": _arg_bool("compare", False),
 		"title": request.args.get("title", options["title"]),
 		"predictors": [item.strip() for item in request.args.get("predictors", "").split(",") if item.strip()],
 		"regions": sspred_figure.parse_region_text(request.args.get("regions", "")),
+		"domains": sspred_figure.parse_domain_text(request.args.get("domains", "")),
 	})
 	return options
 
@@ -387,6 +390,15 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET')
 if app.config['SECRET_KEY'] is None:
 	app.config['SECRET_KEY'] = secrets.token_urlsafe(16)
 
+# Render (and most PaaS hosts) terminate TLS at a proxy, so Flask sees the
+# request as plain http internally. Trust the X-Forwarded-* headers so that
+# url_for(..., _external=True) and the OAuth flow build correct https URLs.
+try:
+	from werkzeug.middleware.proxy_fix import ProxyFix
+	app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
+except Exception as _proxy_exc:  # pragma: no cover
+	print(f"[startup] ProxyFix unavailable: {_proxy_exc}")
+
 
 @app.context_processor
 def inject_global_template_state():
@@ -415,16 +427,81 @@ def _cms_google_enabled():
 	return bool(os.environ.get("GOOGLE_CLIENT_ID") and os.environ.get("GOOGLE_CLIENT_SECRET") and siteurl)
 
 
+def _force_https(url):
+	"""Google's OAuth policy rejects non-https redirect URIs for deployed apps.
+
+	SITE_URL is sometimes configured with http:// (or without a scheme); coerce
+	it to https unless it points at localhost/127.0.0.1 for local development.
+	"""
+	if not url:
+		return url
+	url = url.strip()
+	if url.startswith("http://"):
+		host = url[len("http://"):].split("/", 1)[0].split(":", 1)[0]
+		if host not in ("localhost", "127.0.0.1", "0.0.0.0"):
+			url = "https://" + url[len("http://"):]
+	elif not url.startswith("https://"):
+		url = "https://" + url.lstrip("/")
+	return url
+
+
+def _cms_redirect_uri():
+	base = _force_https(siteurl).rstrip("/")
+	return f"{base}/admin/auth/google/callback"
+
+
 def _cms_client_config():
 	return {
 		"web": {
 			"client_id": os.environ.get("GOOGLE_CLIENT_ID", ""),
 			"client_secret": os.environ.get("GOOGLE_CLIENT_SECRET", ""),
-			"auth_uri": "https://accounts.google.com/o/oauth2/auth",
+			# v2 endpoints are required by Google's current OAuth 2.0 policy.
+			"auth_uri": "https://accounts.google.com/o/oauth2/v2/auth",
 			"token_uri": "https://oauth2.googleapis.com/token",
-			"redirect_uris": [f"{siteurl.rstrip('/')}/admin/auth/google/callback"],
+			"redirect_uris": [_cms_redirect_uri()],
 		}
 	}
+
+
+def _cms_password_enabled():
+	"""Username/password login is available via an env admin or any DB password user."""
+	if os.environ.get("CMS_ADMIN_PASSWORD") or os.environ.get("CMS_ADMIN_PASSWORD_HASH"):
+		return True
+	try:
+		return any(u.get("has_password") for u in cms.list_users())
+	except Exception:
+		return False
+
+
+def _verify_cms_password(username, password):
+	"""Check username/password against the env admin, then against DB CMS users.
+
+	Env admin: set CMS_ADMIN_USERNAME (default 'admin') and either CMS_ADMIN_PASSWORD
+	(plain) or CMS_ADMIN_PASSWORD_HASH (a werkzeug hash). DB users are created in the
+	CMS admin panel with a username + password. Returns a user dict or None.
+	"""
+	import hmac
+	# 1) Environment-configured single admin (works even with no database).
+	expected_user = (os.environ.get("CMS_ADMIN_USERNAME") or "admin").strip()
+	pw_hash = os.environ.get("CMS_ADMIN_PASSWORD_HASH")
+	expected_pw = os.environ.get("CMS_ADMIN_PASSWORD") or ""
+	if (pw_hash or expected_pw) and hmac.compare_digest((username or "").strip(), expected_user):
+		ok = False
+		if pw_hash:
+			try:
+				from werkzeug.security import check_password_hash
+				ok = check_password_hash(pw_hash, password or "")
+			except Exception:
+				ok = False
+		else:
+			ok = hmac.compare_digest(password or "", expected_pw)
+		if ok:
+			return {"email": expected_user.lower(), "role": "admin"}
+	# 2) Database users created in the CMS admin panel.
+	try:
+		return cms.verify_user_credentials(username, password)
+	except Exception:
+		return None
 
 
 def _cms_current_user():
@@ -463,7 +540,10 @@ def _cms_page_bundle():
 @app.route('/')
 def lab_home():
 	bundle = _cms_page_bundle()
-	return render_template('lab/home.html', cms_news=bundle["news"])
+	page = cms.get_page("home")
+	home = dict(cms.DEFAULT_PAGES["home"]["extra"])
+	home.update(page.get("extra") or {})
+	return render_template('lab/home.html', home=home, cms_news=bundle["news"])
 
 @app.route('/research')
 def lab_research():
@@ -485,7 +565,9 @@ def lab_tools():
 
 @app.route('/tutorials')
 def lab_tutorials():
-	return render_template('lab/tutorials.html')
+	return render_template('lab/tutorials.html',
+		cms_page=cms.get_page("tutorials"),
+		tutorial_sections=cms.list_tutorial_sections())
 
 @app.route('/contact')
 def lab_contact():
@@ -497,7 +579,26 @@ def lab_contact():
 def admin_login():
 	return render_template('lab/admin_login.html',
 		google_enabled=_cms_google_enabled(),
+		password_enabled=_cms_password_enabled(),
 		current_user=_cms_current_user())
+
+
+@app.route('/admin/auth/password', methods=['POST'])
+def admin_password_login():
+	if not _cms_password_enabled():
+		return redirect(url_for('admin_login'))
+	username = request.form.get("username", "")
+	password = request.form.get("password", "")
+	verified = _verify_cms_password(username, password)
+	if not verified:
+		return render_template('lab/admin_login.html',
+			google_enabled=_cms_google_enabled(),
+			password_enabled=_cms_password_enabled(),
+			current_user=None,
+			error="Incorrect username or password."), 401
+	session["cms_email"] = verified.get("email") or (username or "admin").strip().lower()
+	session["cms_role"] = verified.get("role", "editor")
+	return redirect(url_for('admin_cms'))
 
 
 @app.route('/admin/logout')
@@ -516,7 +617,7 @@ def admin_google_start():
 		_cms_client_config(),
 		scopes=["openid", "https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile"],
 	)
-	flow.redirect_uri = f"{siteurl.rstrip('/')}{url_for('admin_google_callback')}"
+	flow.redirect_uri = _cms_redirect_uri()
 	auth_url, state = flow.authorization_url(access_type="offline", include_granted_scopes="true", prompt="select_account")
 	session["cms_google_state"] = state
 	return redirect(auth_url)
@@ -534,8 +635,13 @@ def admin_google_callback():
 		scopes=["openid", "https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile"],
 		state=state,
 	)
-	flow.redirect_uri = f"{siteurl.rstrip('/')}{url_for('admin_google_callback')}"
-	flow.fetch_token(authorization_response=request.url)
+	flow.redirect_uri = _cms_redirect_uri()
+	# request.url is http:// when behind Render's TLS-terminating proxy; oauthlib
+	# rejects a scheme mismatch against the https redirect_uri, so normalise it.
+	authorization_response = request.url
+	if authorization_response.startswith("http://"):
+		authorization_response = "https://" + authorization_response[len("http://"):]
+	flow.fetch_token(authorization_response=authorization_response)
 	token = flow.credentials.token
 	userinfo = requests.get(
 		"https://www.googleapis.com/oauth2/v2/userinfo",
@@ -597,6 +703,54 @@ def admin_cms():
 				request.form.get("subtitle", ""),
 				request.form.get("body", ""),
 				{})
+		elif action == "save_home_page":
+			cms.save_page("home",
+				request.form.get("title", "Singh Lab"),
+				"",
+				"",
+				{
+					"eyebrow": request.form.get("eyebrow", ""),
+					"title": request.form.get("hero_title", ""),
+					"tagline": request.form.get("tagline", ""),
+					"description": request.form.get("description", ""),
+					"about_label": request.form.get("about_label", ""),
+					"about_title": request.form.get("about_title", ""),
+					"about_body": request.form.get("about_body", ""),
+				})
+		elif action == "save_tutorials_page":
+			cms.save_page("tutorials",
+				request.form.get("title", ""),
+				request.form.get("subtitle", ""),
+				"", {})
+		elif action == "save_tutorial_section":
+			cms.upsert_tutorial_section(
+				request.form.get("section_id") or None,
+				request.form.get("section_title", ""),
+				request.form.get("section_description", ""),
+				int(request.form.get("sort_order") or 0),
+			)
+		elif action == "delete_tutorial_section":
+			cms.delete_tutorial_section(request.form.get("section_id"))
+		elif action == "save_tutorial_item":
+			doc_path = ""
+			doc_label = request.form.get("doc_label", "")
+			if 'doc_file' in request.files and request.files['doc_file'].filename:
+				doc_path = cms.save_upload(request.files['doc_file'])
+				if not doc_label:
+					doc_label = request.files['doc_file'].filename
+			cms.upsert_tutorial_item(
+				request.form.get("item_id") or None,
+				int(request.form.get("section_id") or 0),
+				request.form.get("item_title", ""),
+				request.form.get("item_body", ""),
+				request.form.get("link_text", ""),
+				request.form.get("link_url", ""),
+				int(request.form.get("sort_order") or 0),
+				doc_path=doc_path,
+				doc_label=doc_label,
+			)
+		elif action == "delete_tutorial_item":
+			cms.delete_tutorial_item(request.form.get("item_id"))
 		elif action == "save_news":
 			cms.upsert_news(
 				request.form.get("news_id") or None,
@@ -644,6 +798,7 @@ def admin_cms():
 				request.form.get("email", ""),
 				request.form.get("role", "editor"),
 				active=(request.form.get("active", "1") == "1"),
+				password=(request.form.get("password") or None),
 			)
 		elif action == "delete_user":
 			admin_user, admin_response = _cms_require_user(admin=True)
@@ -653,8 +808,15 @@ def admin_cms():
 		return redirect(url_for('admin_cms'))
 
 	bundle = _cms_page_bundle()
+	home_extra = dict(cms.DEFAULT_PAGES["home"]["extra"])
+	home_page = cms.get_page("home")
+	home_extra.update(home_page.get("extra") or {})
 	return render_template('lab/admin_cms.html',
 		current_user=user,
+		home_page=home_page,
+		home_extra=home_extra,
+		tutorials_page=cms.get_page("tutorials"),
+		tutorial_sections=cms.list_tutorial_sections(),
 		team_page=bundle["team"],
 		contact_page=bundle["contact"],
 		research_page=bundle["research"],
@@ -868,6 +1030,19 @@ def sspred_publication_figure(var, fmt):
 		return (str(exc), 400)
 	except Exception as exc:
 		return (f"Figure generation failed: {exc}", 500)
+
+
+@app.route('/tools/sspred/analysis/<var>')
+def sspred_analysis(var):
+	"""JSON biophysical + secondary-structure analytics for a job."""
+	row = dbfetch(var)
+	if not row:
+		return jsonify({"error": "Job not found"}), 404
+	try:
+		from services import sequence_analysis
+		return jsonify(sequence_analysis.analyze_row(row))
+	except Exception as exc:
+		return jsonify({"error": f"Analysis failed: {exc}"}), 500
 
 
 # ---------------------------------------------------------------------------

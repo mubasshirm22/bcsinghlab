@@ -25,15 +25,40 @@
       </div>
     </div>
     {% else %}
+    {% if password_enabled %}
     <div class="pipe-form-section">
-      <div class="pipe-form-section-title">Google Login</div>
-      <p style="font-size:0.92rem;color:var(--text-secondary);margin-bottom:16px;">Use a Google account that has been approved for CMS access.</p>
-      {% if google_enabled %}
-      <a href="/admin/auth/google/start" class="btn-lab btn-lab-primary">Sign in with Google →</a>
-      {% else %}
-      <div class="pipe-validation-msg warning">Google login is not configured yet. Add `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SITE_URL`, and approved emails before using the CMS.</div>
-      {% endif %}
+      <div class="pipe-form-section-title">Sign In</div>
+      <p style="font-size:0.92rem;color:var(--text-secondary);margin-bottom:16px;">Enter the lab CMS username and password.</p>
+      <form method="post" action="/admin/auth/password" style="display:grid;gap:14px;max-width:360px;">
+        <label style="display:grid;gap:6px;font-size:0.85rem;font-weight:600;color:var(--text);">
+          Username
+          <input type="text" name="username" autocomplete="username" required
+                 style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:0.95rem;">
+        </label>
+        <label style="display:grid;gap:6px;font-size:0.85rem;font-weight:600;color:var(--text);">
+          Password
+          <input type="password" name="password" autocomplete="current-password" required
+                 style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:0.95rem;">
+        </label>
+        <button type="submit" class="btn-lab btn-lab-primary" style="justify-content:center;">Sign In →</button>
+      </form>
     </div>
+    {% endif %}
+
+    {% if google_enabled %}
+    <div class="pipe-form-section" style="margin-top:20px;">
+      <div class="pipe-form-section-title">{% if password_enabled %}Or Sign In with Google{% else %}Google Login{% endif %}</div>
+      <p style="font-size:0.92rem;color:var(--text-secondary);margin-bottom:16px;">Use a Google account that has been approved for CMS access.</p>
+      <a href="/admin/auth/google/start" class="btn-lab {% if password_enabled %}btn-lab-outline{% else %}btn-lab-primary{% endif %}">Sign in with Google →</a>
+    </div>
+    {% endif %}
+
+    {% if not password_enabled and not google_enabled %}
+    <div class="pipe-form-section">
+      <div class="pipe-form-section-title">Login Not Configured</div>
+      <div class="pipe-validation-msg warning">No login method is set up yet. The simplest option: set <code>CMS_ADMIN_USERNAME</code> and <code>CMS_ADMIN_PASSWORD</code> in your environment variables, then reload this page.</div>
+    </div>
+    {% endif %}
     {% endif %}
   </div>
 </section>

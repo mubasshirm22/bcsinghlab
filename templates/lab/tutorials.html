@@ -5,85 +5,54 @@
 
 <section class="page-hero">
   <div class="lab-container">
-    <h1>Tutorials &amp; Resources</h1>
-    <p>Guides and documentation for using lab tools and understanding our methods.</p>
+    <h1>{{ cms_page.title }}</h1>
+    <p>{{ cms_page.subtitle }}</p>
   </div>
 </section>
 
-<!-- SSPred Tutorials -->
-<section class="lab-section lab-section--alt">
+{% for section in tutorial_sections %}
+<section class="lab-section {% if loop.index0 % 2 == 0 %}lab-section--alt{% endif %}">
   <div class="lab-container">
-    <p class="section-label">SSPred</p>
-    <h2 class="section-title" style="margin-bottom:32px;">Getting Started with SSPred</h2>
+    <p class="section-label">Tutorials</p>
+    <h2 class="section-title" style="margin-bottom:6px;">{{ section.title }}</h2>
+    {% if section.description %}
+    <p class="section-subtitle" style="margin-bottom:32px;">{{ section.description }}</p>
+    {% else %}
+    <div style="margin-bottom:24px;"></div>
+    {% endif %}
+
+    {% if section['items'] %}
     <div class="grid-2">
-
+      {% for item in section['items'] %}
       <div class="tutorial-card">
-        <div class="tut-num">Tutorial 1</div>
-        <h3>Submitting Your First Sequence</h3>
-        <p>Learn how to paste a protein sequence into SSPred, choose your prediction servers, and interpret the progress page while your job runs.</p>
-        <div style="margin-top:16px;">
-          <span class="badge badge-soon">Coming Soon</span>
+        <h3>{{ item.title }}</h3>
+        {% if item.body %}<p>{{ item.body }}</p>{% endif %}
+        <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
+          {% if item.doc_path %}
+          <a href="{{ item.doc_path }}" target="_blank" rel="noopener" class="btn-lab btn-lab-primary btn-sm">
+            {{ item.doc_label or 'Download' }} ↓
+          </a>
+          {% endif %}
+          {% if item.link_url %}
+          <a href="{{ item.link_url }}" target="_blank" rel="noopener" class="btn-lab btn-lab-outline btn-sm">
+            {{ item.link_text or 'Open link' }} →
+          </a>
+          {% endif %}
         </div>
       </div>
-
-      <div class="tutorial-card">
-        <div class="tut-num">Tutorial 2</div>
-        <h3>Understanding the Prediction Output</h3>
-        <p>How to read the consensus output, what H/E/C mean, how majority voting works, and how to interpret confidence scores from different servers.</p>
-        <div style="margin-top:16px;">
-          <span class="badge badge-soon">Coming Soon</span>
-        </div>
-      </div>
-
-      <div class="tutorial-card">
-        <div class="tut-num">Tutorial 3</div>
-        <h3>Using PDB Structure IDs</h3>
-        <p>Instead of pasting a sequence, you can provide a PDB ID and chain. SSPred will fetch the sequence automatically and run predictions against the known structure.</p>
-        <div style="margin-top:16px;">
-          <span class="badge badge-soon">Coming Soon</span>
-        </div>
-      </div>
-
-      <div class="tutorial-card">
-        <div class="tut-num">Tutorial 4</div>
-        <h3>Choosing Between Prediction Servers</h3>
-        <p>A guide to the current SSPred prediction servers — JPred4, PSIPred, SABLE, SSPro, YASPIN, Predator, and NetSurfP-2.0 — and when to use each.</p>
-        <div style="margin-top:16px;">
-          <span class="badge badge-soon">Coming Soon</span>
-        </div>
-      </div>
-
+      {% endfor %}
     </div>
+    {% else %}
+    <p style="color:var(--text-light);font-size:0.9rem;">No tutorials in this section yet.</p>
+    {% endif %}
   </div>
 </section>
-
-<!-- External Resources -->
+{% else %}
 <section class="lab-section">
   <div class="lab-container">
-    <p class="section-label">External Resources</p>
-    <h2 class="section-title" style="margin-bottom:32px;">Useful Links</h2>
-    <div class="grid-3">
-
-      <div class="lab-card">
-        <h3 style="margin-bottom:8px;font-size:1rem;">UniProt</h3>
-        <p style="font-size:0.88rem;color:var(--text-secondary);margin-bottom:16px;">Comprehensive protein sequence and functional information database.</p>
-        <a href="https://www.uniprot.org" target="_blank" rel="noopener" class="btn-lab btn-lab-outline btn-sm">Visit →</a>
-      </div>
-
-      <div class="lab-card">
-        <h3 style="margin-bottom:8px;font-size:1rem;">RCSB Protein Data Bank</h3>
-        <p style="font-size:0.88rem;color:var(--text-secondary);margin-bottom:16px;">Repository of 3D structural data of biological macromolecules.</p>
-        <a href="https://www.rcsb.org" target="_blank" rel="noopener" class="btn-lab btn-lab-outline btn-sm">Visit →</a>
-      </div>
-
-      <div class="lab-card">
-        <h3 style="margin-bottom:8px;font-size:1rem;">PSIPred Server</h3>
-        <p style="font-size:0.88rem;color:var(--text-secondary);margin-bottom:16px;">UCL bioinformatics group's direct access to PSIPRED and other structure tools.</p>
-        <a href="http://bioinf.cs.ucl.ac.uk/psipred/" target="_blank" rel="noopener" class="btn-lab btn-lab-outline btn-sm">Visit →</a>
-      </div>
-
-    </div>
+    <p style="color:var(--text-secondary);">Tutorials are being prepared. Please check back soon.</p>
   </div>
 </section>
+{% endfor %}
 
 {% endblock %}

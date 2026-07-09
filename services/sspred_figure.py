@@ -8,8 +8,10 @@ except ImportError:
     svgwrite = None
 
 try:
+    # cairosvg raises OSError (not ImportError) when libcairo is missing, so
+    # catch broadly — SVG rendering must keep working even if PNG/PDF can't.
     import cairosvg
-except ImportError:
+except Exception:
     cairosvg = None
 
 
@@ -83,6 +85,13 @@ PALETTES = {
 }
 
 
+# Distinct fills cycled through for domain-architecture boxes.
+DOMAIN_COLORS = [
+    "#2563EB", "#059669", "#D97706", "#DB2777",
+    "#7C3AED", "#0891B2", "#CA8A04", "#DC2626",
+]
+
+
 def default_options():
     return {
         "row_length": 80,
@@ -92,12 +101,15 @@ def default_options():
         "show_consensus": True,
         "show_pdb": True,
         "show_confidence": True,
+        "show_hydropathy": False,
+        "hydropathy_window": 9,
         "predictors": [],
         "legend": True,
         "clean": False,
         "compare": False,
         "title": "SSPred Secondary Structure Summary",
         "regions": [],
+        "domains": [],
     }
 
 
@@ -120,6 +132,7 @@ def render_svg(row: dict, options: dict | None = None) -> str:
     consensus = row.get("majorityvote") or ""
     support = _consensus_support(sequence, predictors, consensus)
     regions = _normalize_regions(opts.get("regions") or [], len(sequence))
+    domains = _normalize_domains(opts.get("domains") or [], len(sequence))
 
     tracks = []
     if opts.get("show_sequence", True):
@@ -132,13 +145,17 @@ def render_svg(row: dict, options: dict | None = None) -> str:
         tracks.append(("Consensus", consensus, "consensus"))
     if opts.get("show_confidence", True) and support:
         tracks.append(("Support", support, "confidence"))
+    if opts.get("show_hydropathy", False):
+        hydro = _hydropathy_values(sequence, opts.get("hydropathy_window", 9))
+        if hydro:
+            tracks.append(("Hydropathy", hydro, "hydropathy"))
 
     char_width = style["char_width"]
     left_margin = 120
     right_margin = 32
     top_margin = 32 if opts.get("clean") else 72
     bottom_margin = 36
-    block_height = _block_height(len(tracks), style, bool(regions))
+    block_height = _block_height(tracks, style, bool(regions), bool(domains))
     n_blocks = (len(sequence) + row_length - 1) // row_length
     width = int(left_margin + right_margin + row_length * char_width)
     height = int(top_margin + bottom_margin + n_blocks * block_height + (18 if opts.get("legend") else 0))
@@ -181,12 +198,13 @@ def render_svg(row: dict, options: dict | None = None) -> str:
             start,
             end,
             regions,
+            domains,
             bool(opts.get("compare")),
             pdb_data["secondary"] if pdb_data else "",
         )
 
     if opts.get("legend"):
-        _draw_legend(drawing, tracks, palette, style, left_margin, height - 18)
+        _draw_legend(drawing, tracks, palette, style, left_margin, height - 18, domains)
 
     return drawing.tostring()
 
@@ -222,6 +240,33 @@ def parse_region_text(text: str) -> list[dict]:
             start, end = end, start
         regions.append({"start": start, "end": end, "label": label})
     return regions
+
+
+def parse_domain_text(text: str) -> list[dict]:
+    """Parse domain-architecture input.
+
+    Accepts lines of ``start-end: Label`` and optionally ``start-end: Label #hexcolor``.
+    """
+    domains = []
+    for raw_line in (text or "").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        color = ""
+        color_match = re.search(r"(#[0-9A-Fa-f]{6})\s*$", line)
+        if color_match:
+            color = color_match.group(1)
+            line = line[:color_match.start()].strip()
+        match = re.match(r"(\d+)\s*-\s*(\d+)(?::|\s+)(.+)$", line)
+        if not match:
+            continue
+        start = int(match.group(1))
+        end = int(match.group(2))
+        label = match.group(3).strip()
+        if end < start:
+            start, end = end, start
+        domains.append({"start": start, "end": end, "label": label, "color": color})
+    return domains
 
 
 def _resolved_predictors(row: dict, requested: Iterable[str]) -> list[dict]:
@@ -304,12 +349,24 @@ def _normalize_regions(regions: list[dict], seq_len: int) -> list[dict]:
     return output
 
 
-def _block_height(track_count: int, style: dict, has_regions: bool) -> int:
+HYDROPATHY_TRACK_HEIGHT = 46
+DOMAIN_BAND_HEIGHT = 20
+
+
+def _track_height(track_kind: str, style: dict) -> int:
+    if track_kind == "hydropathy":
+        return HYDROPATHY_TRACK_HEIGHT
+    return style["row_gap"]
+
+
+def _block_height(tracks, style: dict, has_regions: bool, has_domains: bool = False) -> int:
     extra = 18 if has_regions else 0
-    return style["line_padding"] + track_count * style["row_gap"] + extra + 12
+    extra += DOMAIN_BAND_HEIGHT if has_domains else 0
+    tracks_height = sum(_track_height(kind, style) for _, _, kind in tracks)
+    return style["line_padding"] + tracks_height + extra + 12
 
 
-def _draw_block(drawing, row, tracks, palette, style, left_margin, base_y, char_width, start, end, regions, compare, pdb_secondary):
+def _draw_block(drawing, row, tracks, palette, style, left_margin, base_y, char_width, start, end, regions, domains, compare, pdb_secondary):
     font_size = style["font_size"]
     label_size = style["label_size"]
     block_width = (end - start) * char_width
@@ -339,11 +396,17 @@ def _draw_block(drawing, row, tracks, palette, style, left_margin, base_y, char_
                 font_family="Helvetica, Arial, sans-serif",
             ))
 
-    if regions:
-        _draw_regions(drawing, regions, palette, left_margin, base_y + 14, char_width, start, end, len(tracks) * style["row_gap"])
+    tracks_span = sum(_track_height(kind, style) for _, _, kind in tracks)
+    domain_offset = 0
+    if domains:
+        _draw_domains(drawing, domains, left_margin, base_y + 14, char_width, start, end)
+        domain_offset = DOMAIN_BAND_HEIGHT
 
-    for track_index, (label, track_data, track_kind) in enumerate(tracks):
-        y = base_y + style["line_padding"] + track_index * style["row_gap"]
+    if regions:
+        _draw_regions(drawing, regions, palette, left_margin, base_y + 14 + domain_offset, char_width, start, end, tracks_span)
+
+    y = base_y + style["line_padding"] + domain_offset
+    for label, track_data, track_kind in tracks:
         drawing.add(drawing.text(
             label,
             insert=(left_margin - 8, y),
@@ -354,8 +417,14 @@ def _draw_block(drawing, row, tracks, palette, style, left_margin, base_y, char_
             font_weight="600" if track_kind in {"consensus", "structure"} else "400",
         ))
 
+        if track_kind == "hydropathy":
+            _draw_hydropathy(drawing, track_data, palette, style, left_margin, y - 8, char_width, start, end)
+            y += _track_height(track_kind, style)
+            continue
+
         if track_kind == "confidence":
             _draw_support_strip(drawing, track_data, palette, left_margin, y - 10, char_width, start, end)
+            y += _track_height(track_kind, style)
             continue
 
         segment = track_data[start:end]
@@ -377,6 +446,7 @@ def _draw_block(drawing, row, tracks, palette, style, left_margin, base_y, char_
                 font_size=font_size,
                 font_family="'Courier New', monospace",
             ))
+        y += _track_height(track_kind, style)
 
 
 def _draw_regions(drawing, regions, palette, left_margin, top_y, char_width, start, end, track_height):
@@ -422,7 +492,7 @@ def _draw_support_strip(drawing, support_values, palette, left_margin, top_y, ch
         ))
 
 
-def _draw_legend(drawing, tracks, palette, style, left_margin, y):
+def _draw_legend(drawing, tracks, palette, style, left_margin, y, domains=None):
     x = left_margin
     items = [
         ("Helix", palette["H"]),
@@ -431,6 +501,8 @@ def _draw_legend(drawing, tracks, palette, style, left_margin, y):
     ]
     if any(track[2] == "confidence" for track in tracks):
         items.append(("Consensus support", palette["support_high"]))
+    if any(track[2] == "hydropathy" for track in tracks):
+        items.append(("Kyte-Doolittle hydropathy", "#0EA5E9"))
     for label, color in items:
         drawing.add(drawing.rect(insert=(x, y - 9), size=(12, 12), fill=color, rx=2, ry=2))
         drawing.add(drawing.text(
@@ -440,7 +512,120 @@ def _draw_legend(drawing, tracks, palette, style, left_margin, y):
             font_size=10,
             font_family="Helvetica, Arial, sans-serif",
         ))
-        x += 108
+        x += 24 + len(label) * 6.0
+
+
+def _hydropathy_values(sequence, window):
+    """Kyte-Doolittle sliding-window hydropathy, one value per residue."""
+    scale = {
+        "A": 1.8, "R": -4.5, "N": -3.5, "D": -3.5, "C": 2.5,
+        "Q": -3.5, "E": -3.5, "G": -0.4, "H": -3.2, "I": 4.5,
+        "L": 3.8, "K": -3.9, "M": 1.9, "F": 2.8, "P": -1.6,
+        "S": -0.8, "T": -0.7, "W": -0.9, "Y": -1.3, "V": 4.2,
+    }
+    residues = (sequence or "").upper()
+    n = len(residues)
+    if n == 0:
+        return []
+    try:
+        window = int(window)
+    except (TypeError, ValueError):
+        window = 9
+    window = max(1, min(window, n))
+    if window % 2 == 0:
+        window += 1
+    half = window // 2
+    values = []
+    for center in range(n):
+        lo = max(0, center - half)
+        hi = min(n, center + half + 1)
+        chunk = residues[lo:hi]
+        values.append(sum(scale.get(aa, 0.0) for aa in chunk) / len(chunk))
+    return values
+
+
+def _draw_hydropathy(drawing, values, palette, style, left_margin, top_y, char_width, start, end):
+    """Draw a filled Kyte-Doolittle line plot for the residues in [start, end)."""
+    band = HYDROPATHY_TRACK_HEIGHT - 14
+    scale_max = 4.5  # KD extremes are +/-4.5
+    mid_y = top_y + band / 2.0
+    block_width = (end - start) * char_width
+
+    # Baseline (hydropathy = 0) and a faint frame.
+    drawing.add(drawing.rect(
+        insert=(left_margin, top_y), size=(max(block_width, 1.0), band),
+        fill="#F8FAFC", stroke="#E2E8F0", stroke_width=0.6,
+    ))
+    drawing.add(drawing.line(
+        start=(left_margin, mid_y), end=(left_margin + block_width, mid_y),
+        stroke="#CBD5E1", stroke_width=0.8, stroke_dasharray="3,3",
+    ))
+
+    segment = values[start:end]
+    if not segment:
+        return
+
+    def point(offset, value):
+        x = left_margin + (offset + 0.5) * char_width
+        clamped = max(-scale_max, min(scale_max, value))
+        y = mid_y - (clamped / scale_max) * (band / 2.0)
+        return x, y
+
+    # Filled area to the midline for readability.
+    area_points = [(left_margin + 0.5 * char_width, mid_y)]
+    line_points = []
+    for offset, value in enumerate(segment):
+        px, py = point(offset, value)
+        area_points.append((px, py))
+        line_points.append((px, py))
+    area_points.append((point(len(segment) - 1, segment[-1])[0], mid_y))
+    drawing.add(drawing.polygon(points=area_points, fill="#0EA5E9", fill_opacity=0.16, stroke="none"))
+    drawing.add(drawing.polyline(points=line_points, fill="none", stroke="#0284C7", stroke_width=1.4))
+
+
+def _normalize_domains(domains, seq_len):
+    output = []
+    for idx, domain in enumerate(domains or []):
+        try:
+            d_start = max(1, int(domain.get("start", 0)))
+            d_end = min(seq_len, int(domain.get("end", 0)))
+        except (AttributeError, TypeError, ValueError):
+            continue
+        if d_start > d_end:
+            continue
+        color = str(domain.get("color", "")).strip() or DOMAIN_COLORS[idx % len(DOMAIN_COLORS)]
+        output.append({
+            "start": d_start,
+            "end": d_end,
+            "label": str(domain.get("label", "")).strip(),
+            "color": color,
+        })
+    return output
+
+
+def _draw_domains(drawing, domains, left_margin, top_y, char_width, start, end):
+    """Draw domain-architecture boxes (Pfam/InterPro-style) across a block."""
+    for domain in domains:
+        if domain["end"] < start + 1 or domain["start"] > end:
+            continue
+        d_start = max(domain["start"] - 1, start)
+        d_end = min(domain["end"], end)
+        x = left_margin + (d_start - start) * char_width
+        width = max(char_width, (d_end - d_start) * char_width)
+        drawing.add(drawing.rect(
+            insert=(x, top_y), size=(width, 13),
+            fill=domain["color"], fill_opacity=0.85,
+            stroke=domain["color"], stroke_width=1, rx=3, ry=3,
+        ))
+        label = domain.get("label")
+        if label and width > len(label) * 5.5:
+            drawing.add(drawing.text(
+                label,
+                insert=(x + width / 2.0, top_y + 9.5),
+                fill="#ffffff", font_size=8.5,
+                font_family="Helvetica, Arial, sans-serif",
+                font_weight="700", text_anchor="middle",
+            ))
 
 
 def _char_color(char, track_kind, palette):

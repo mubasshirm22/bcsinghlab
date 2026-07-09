@@ -98,6 +98,24 @@ DEFAULT_TEAM = [
 ]
 
 DEFAULT_PAGES = {
+    "home": {
+        "title": "Singh Lab",
+        "subtitle": "",
+        "extra": {
+            "eyebrow": "Brooklyn College · The City University of New York",
+            "title": "Singh Lab",
+            "tagline": "Bioinformatics Laboratory at Brooklyn College",
+            "description": "Applying computational modeling to address important questions in protein structure, function, and evolution.",
+            "about_label": "About",
+            "about_title": "Computational Biology at Brooklyn College",
+            "about_body": "Shaneen Singh is a professor of biology at Brooklyn College. Although trained as an experimental biologist, she has transitioned into the field of computational biology. The long-term research goal of her lab is to apply computer modeling to address important biological questions.\n\nThe lab teaches courses in bioinformatics and mentors students at both the undergraduate and graduate level.",
+        },
+    },
+    "tutorials": {
+        "title": "Tutorials & Resources",
+        "subtitle": "Guides and documentation for using lab tools and understanding our methods.",
+        "extra": {},
+    },
     "team": {
         "title": "Team",
         "subtitle": "Faculty, graduate students, postdocs, and undergraduates in the Singh Lab.",
@@ -195,6 +213,31 @@ def ensure_tables():
             active BOOLEAN NOT NULL DEFAULT TRUE
         )
         """,
+        """
+        CREATE TABLE IF NOT EXISTS cms_tutorial_sections (
+            id SERIAL PRIMARY KEY,
+            title TEXT NOT NULL DEFAULT '',
+            description TEXT NOT NULL DEFAULT '',
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            active BOOLEAN NOT NULL DEFAULT TRUE
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS cms_tutorial_items (
+            id SERIAL PRIMARY KEY,
+            section_id INTEGER NOT NULL DEFAULT 0,
+            title TEXT NOT NULL DEFAULT '',
+            body TEXT NOT NULL DEFAULT '',
+            link_text TEXT NOT NULL DEFAULT '',
+            link_url TEXT NOT NULL DEFAULT '',
+            doc_path TEXT NOT NULL DEFAULT '',
+            doc_label TEXT NOT NULL DEFAULT '',
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            active BOOLEAN NOT NULL DEFAULT TRUE
+        )
+        """,
+        # Password hash for username/password CMS logins (nullable; Google users have none).
+        "ALTER TABLE cms_users ADD COLUMN IF NOT EXISTS password_hash TEXT",
     ]
     with _conn() as conn:
         with conn.cursor() as cur:
@@ -373,28 +416,161 @@ def delete_team_member(member_id):
     _soft_delete("cms_team_members", member_id)
 
 
+DEFAULT_TUTORIAL_SECTIONS = [
+    {
+        "id": 1,
+        "title": "Getting Started with SSPred",
+        "description": "Guides for submitting sequences and interpreting predictions.",
+        "items": [
+            {"id": 1, "title": "Submitting Your First Sequence", "body": "Paste a protein sequence into SSPred, choose your prediction servers, and follow the progress page while your job runs.", "link_text": "", "link_url": "", "doc_path": "", "doc_label": ""},
+            {"id": 2, "title": "Understanding the Prediction Output", "body": "How to read the consensus output, what H/E/C mean, how majority voting works, and how to interpret confidence scores.", "link_text": "", "link_url": "", "doc_path": "", "doc_label": ""},
+        ],
+    },
+    {
+        "id": 2,
+        "title": "External Resources",
+        "description": "Useful databases and reference servers.",
+        "items": [
+            {"id": 3, "title": "UniProt", "body": "Comprehensive protein sequence and functional information database.", "link_text": "Visit UniProt", "link_url": "https://www.uniprot.org", "doc_path": "", "doc_label": ""},
+            {"id": 4, "title": "RCSB Protein Data Bank", "body": "Repository of 3D structural data of biological macromolecules.", "link_text": "Visit RCSB PDB", "link_url": "https://www.rcsb.org", "doc_path": "", "doc_label": ""},
+        ],
+    },
+]
+
+
+def list_tutorial_sections():
+    """Return tutorial sections, each with a nested list of active items."""
+    if not DATABASE_URL:
+        return [dict(s) for s in DEFAULT_TUTORIAL_SECTIONS]
+    with _conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT * FROM cms_tutorial_sections WHERE active = TRUE ORDER BY sort_order ASC, id ASC")
+            sections = cur.fetchall()
+            cur.execute("SELECT * FROM cms_tutorial_items WHERE active = TRUE ORDER BY sort_order ASC, id ASC")
+            items = cur.fetchall()
+    if not sections:
+        return [dict(s) for s in DEFAULT_TUTORIAL_SECTIONS]
+    by_section = {}
+    for item in items:
+        by_section.setdefault(item["section_id"], []).append(item)
+    for section in sections:
+        section["items"] = by_section.get(section["id"], [])
+    return sections
+
+
+def upsert_tutorial_section(section_id, title, description, sort_order):
+    ensure_tables()
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            if section_id:
+                cur.execute(
+                    "UPDATE cms_tutorial_sections SET title=%s, description=%s, sort_order=%s, active=TRUE WHERE id=%s",
+                    (title, description, sort_order, section_id),
+                )
+            else:
+                cur.execute(
+                    "INSERT INTO cms_tutorial_sections (title, description, sort_order, active) VALUES (%s, %s, %s, TRUE)",
+                    (title, description, sort_order),
+                )
+        conn.commit()
+
+
+def delete_tutorial_section(section_id):
+    _soft_delete("cms_tutorial_sections", section_id)
+
+
+def upsert_tutorial_item(item_id, section_id, title, body, link_text, link_url, sort_order, doc_path="", doc_label=""):
+    ensure_tables()
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            if item_id:
+                if doc_path:
+                    cur.execute(
+                        """UPDATE cms_tutorial_items SET section_id=%s, title=%s, body=%s, link_text=%s,
+                           link_url=%s, doc_path=%s, doc_label=%s, sort_order=%s, active=TRUE WHERE id=%s""",
+                        (section_id, title, body, link_text, link_url, doc_path, doc_label, sort_order, item_id),
+                    )
+                else:
+                    cur.execute(
+                        """UPDATE cms_tutorial_items SET section_id=%s, title=%s, body=%s, link_text=%s,
+                           link_url=%s, doc_label=%s, sort_order=%s, active=TRUE WHERE id=%s""",
+                        (section_id, title, body, link_text, link_url, doc_label, sort_order, item_id),
+                    )
+            else:
+                cur.execute(
+                    """INSERT INTO cms_tutorial_items (section_id, title, body, link_text, link_url, doc_path, doc_label, sort_order, active)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, TRUE)""",
+                    (section_id, title, body, link_text, link_url, doc_path or "", doc_label, sort_order),
+                )
+        conn.commit()
+
+
+def delete_tutorial_item(item_id):
+    _soft_delete("cms_tutorial_items", item_id)
+
+
 def list_users():
     if not DATABASE_URL:
         return []
     with _conn() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT email, role, active, created_at FROM cms_users ORDER BY email ASC")
+            cur.execute(
+                "SELECT email, role, active, created_at, (password_hash IS NOT NULL AND password_hash <> '') AS has_password "
+                "FROM cms_users ORDER BY email ASC"
+            )
             return cur.fetchall()
 
 
-def upsert_user(email, role="editor", active=True):
+def upsert_user(email, role="editor", active=True, password=None):
+    """Create or update a CMS user. If password is provided it is hashed and stored."""
     ensure_tables()
+    identifier = email.lower().strip()
+    password_hash = None
+    if password:
+        from werkzeug.security import generate_password_hash
+        password_hash = generate_password_hash(password)
     with _conn() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO cms_users (email, role, active)
-                VALUES (%s, %s, %s)
-                ON CONFLICT (email) DO UPDATE SET role = EXCLUDED.role, active = EXCLUDED.active
-                """,
-                (email.lower().strip(), role, bool(active)),
-            )
+            if password_hash is not None:
+                cur.execute(
+                    """
+                    INSERT INTO cms_users (email, role, active, password_hash)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (email) DO UPDATE SET role = EXCLUDED.role, active = EXCLUDED.active,
+                        password_hash = EXCLUDED.password_hash
+                    """,
+                    (identifier, role, bool(active), password_hash),
+                )
+            else:
+                cur.execute(
+                    """
+                    INSERT INTO cms_users (email, role, active)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (email) DO UPDATE SET role = EXCLUDED.role, active = EXCLUDED.active
+                    """,
+                    (identifier, role, bool(active)),
+                )
         conn.commit()
+
+
+def verify_user_credentials(username, password):
+    """Return the user row if a DB user has a matching password hash and is active."""
+    if not DATABASE_URL or not username or not password:
+        return None
+    identifier = username.lower().strip()
+    with _conn() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT email, role, active, password_hash FROM cms_users WHERE email = %s", (identifier,))
+            row = cur.fetchone()
+    if not row or not row.get("active") or not row.get("password_hash"):
+        return None
+    try:
+        from werkzeug.security import check_password_hash
+        if check_password_hash(row["password_hash"], password):
+            return {"email": row["email"], "role": row.get("role", "editor")}
+    except Exception:
+        return None
+    return None
 
 
 def delete_user(email):

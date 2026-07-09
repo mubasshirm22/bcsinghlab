@@ -16,19 +16,20 @@ html, body {
 }
 
 :root {
-	--primary: #2563eb;
-	--primary-dark: #1e40af;
+	--primary: #6d1a2e;
+	--primary-dark: #4d0f1f;
+	--primary-tint: #f7ecef;
 	--secondary: #64748b;
-	--success: #059669;
-	--warning: #d97706;
-	--error: #dc2626;
-	--bg: #f8fafc;
+	--success: #157347;
+	--warning: #b25e09;
+	--error: #b02a37;
+	--bg: #f8f6f4;
 	--surface: #ffffff;
-	--text: #0f172a;
-	--text-secondary: #475569;
-	--text-light: #94a3b8;
-	--border: #e2e8f0;
-	--border-light: #f1f5f9;
+	--text: #241419;
+	--text-secondary: #5b4a4f;
+	--text-light: #98868c;
+	--border: #e7dedf;
+	--border-light: #f4eeef;
 	--shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 	--shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
 	--shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
@@ -1089,3 +1090,81 @@ button:not(.btn):hover {
 		margin: 4px 0;
 	}
 }
+
+/* ============================================================
+   Sequence Analysis panel (dboutput)
+   ============================================================ */
+.analysis-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+	gap: 16px;
+}
+.analysis-card {
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 12px;
+	padding: 16px 18px;
+	box-shadow: var(--shadow-sm);
+}
+.analysis-card-title {
+	font-size: 0.78rem;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: var(--primary-dark);
+	margin-bottom: 12px;
+}
+.analysis-stat-grid {
+	display: grid;
+	gap: 2px;
+}
+.analysis-stat {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: 10px;
+	padding: 6px 0;
+	border-bottom: 1px dashed var(--border);
+	font-size: 0.86rem;
+}
+.analysis-stat:last-child { border-bottom: none; }
+.analysis-stat-label { color: var(--text-secondary); }
+.analysis-stat-value { font-weight: 700; color: var(--text); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.ss-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-bottom: 10px;
+}
+.ss-row-name {
+	min-width: 96px;
+	font-size: 0.82rem;
+	font-weight: 600;
+	color: var(--text);
+	white-space: nowrap;
+}
+.ss-bar {
+	flex: 1;
+	display: flex;
+	height: 14px;
+	border-radius: 7px;
+	overflow: hidden;
+	background: var(--border-light);
+	min-width: 80px;
+}
+.ss-bar > span { display: block; height: 100%; transition: width 0.3s ease; }
+.ss-legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	margin: 4px 0 12px 106px;
+}
+.ss-legend-item {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	font-size: 0.76rem;
+	color: var(--text-secondary);
+}
+.ss-swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }

@@ -2084,7 +2084,10 @@ function buildIbsDiagram() {
       protein.createSite({
         displayName: ann.label || ann.feature_type,
         shape: cfg.shape || 'circle',
-        position: ann.start,
+        // IBS sites are positioned by `location` (Site.js), not `position`.
+        // Passing `position` left `location` unset, so IBS fell back to a random
+        // site each build — which made the marker jump around on every generate.
+        location: ann.start,
         text: { content: ann.label || '', position: 'top' },
         style: { color: cfg.color },
       });

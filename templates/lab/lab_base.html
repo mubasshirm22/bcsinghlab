@@ -9,7 +9,7 @@
 </head>
 <body>
 
-  <header class="lab-header">
+  <header class="lab-header" id="lab-header">
     <div class="lab-header-inner">
       <a href="/" class="lab-logo">Singh Lab</a>
       <button class="lab-hamburger" id="hamburger" aria-label="Toggle menu">
@@ -22,7 +22,7 @@
           <a href="/tools" class="nav-dropdown-trigger">Tools</a>
           <div class="nav-dropdown-menu">
             <a href="/tools/sspred">
-              <span class="dd-icon" style="background:#eff6ff;color:#2563eb;">SS</span>
+              <span class="dd-icon" style="background:var(--primary-tint);color:var(--primary);">SS</span>
               SSPred
               <span class="dd-badge badge-live">Live</span>
             </a>
@@ -59,6 +59,7 @@
         <a href="/tools/protsuite" class="nav-tool-btn" style="background:var(--accent-teal);margin-left:4px;">ProtSuite</a>
       </nav>
     </div>
+    <div class="scroll-progress" aria-hidden="true"><span id="scroll-progress-bar"></span></div>
   </header>
 
   {% if _page_unavailable %}
